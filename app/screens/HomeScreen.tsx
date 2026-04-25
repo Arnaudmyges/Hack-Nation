@@ -1,9 +1,19 @@
+<<<<<<< HEAD
+import { useEffect } from "react";
+import { testOllamaParsing, testFallback } from "../tests/testOllama";
+
+useEffect(() => {
+  testFallback();
+  testOllamaParsing();
+}, []);
+=======
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { useState, useEffect } from "react";
 import { OfferCard } from "../components/OfferCard";
 import { testSupabase, testWeather } from "../tests/testSupabase";
 import { testOllamaParsing, testFallback } from "../tests/testOllama";
 
+// Offre factice pour tester le rendu — le vrai pipeline arrive en Sprint 3
 const MOCK_OFFER = {
   headline: "Cold outside? Come in fast.",
   sub_text: "-15% off all hot drinks",
@@ -106,3 +116,4 @@ export default function HomeScreen({ navigation }: any) {
     </ScrollView>
   );
 }
+>>>>>>> 91f76da (sprint 2)
