@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { OfferCard } from "../components/OfferCard";
+import { testSupabase } from "../tests/testSupabase";
 
 // Offre factice pour tester le rendu — le vrai pipeline arrive en Sprint 3
 const MOCK_OFFER = {
@@ -17,6 +18,10 @@ const MOCK_OFFER = {
 export default function HomeScreen({ navigation }: any) {
   const [offer, setOffer] = useState<typeof MOCK_OFFER | null>(null);
   const [phase, setPhase] = useState<"idle" | "sensing" | "generating" | "ready">("idle");
+
+  useEffect(() => {
+    testSupabase();
+  }, []);
 
   const simulateMia = async () => {
     setPhase("sensing");
