@@ -40,8 +40,4 @@ yarn-error.*
 /ios
 /android
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 67308ba9737e02eb66d1f4e4b0d72951dd835b44
 .env
