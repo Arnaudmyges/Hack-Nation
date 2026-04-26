@@ -27,6 +27,6 @@ export async function testWeather() {
 
   console.log("=== TEST PAYONE ===");
   [9, 12, 14, 16, 20].forEach(h => {
-    // console.log(`  H=${h}h → Payone: ${simulatePayoneSignalForMerchant(h)}%`);
-  });
+  console.log(`  H=${h}h → Payone: ${simulatePayoneSignalForMerchant("cafe-muller", h)}%`);
+});
 }
