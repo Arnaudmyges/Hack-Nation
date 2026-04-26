@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { OfferCard } from "../components/OfferCard";
 import { testSupabase, testWeather } from "../tests/testSupabase";
 import { testOllamaParsing, testFallback } from "../tests/testOllama";
+import { testFullPipeline } from "../tests/testPipeline";
 
 const MOCK_OFFER = {
   headline: "Cold outside? Come in fast.",
@@ -20,10 +21,11 @@ export default function HomeScreen({ navigation }: any) {
   const [phase, setPhase] = useState<"idle" | "sensing" | "generating" | "ready">("idle");
 
   useEffect(() => {
-    testSupabase();
-    testWeather();
-    testFallback(); 
-    testOllamaParsing();
+    // testSupabase();
+    // testWeather();
+    // testFallback(); 
+    // testOllamaParsing();
+    testFullPipeline();
   }, []);
 
   const simulateMia = async () => {
