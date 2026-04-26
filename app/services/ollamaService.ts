@@ -39,42 +39,53 @@ function buildPrompt(signal: IntentSignal): string {
 - Max allowed discount: ${signal.max_discount_pct}%
 - Language: ${signal.language}`;
 }
+function extractJSON(text: string) {
+  try {
+    let cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
+    if (cleanText.startsWith("{") && !cleanText.endsWith("}")) {
+      console.warn("⚠️ JSON tronqué détecté, tentative de réparation...");
+      
+      const quoteCount = (cleanText.match(/"/g) || []).length;
+      if (quoteCount % 2 !== 0) {
+        cleanText += '"';
+      }
+      cleanText += "}";
+    }
+
+    return JSON.parse(cleanText);
+  } catch (e) {
+    console.error("❌ Échec critique du parsing JSON:", text);
+    throw new Error("Invalid JSON structure from Ollama");
+  }
+}
 export async function generateOfferFromOllama(
   signal: IntentSignal
 ): Promise<GeneratedOffer> {
-  const res = await fetch(OLLAMA_URL, {
+  const res = await fetch("http://localhost:11434/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
-      format: "json",
+      model: "phi3:mini",
       system: SYSTEM_PROMPT,
       prompt: buildPrompt(signal),
       stream: false,
+      format: "json",
       options: { temperature: 0.7, num_predict: 200 },
     }),
   });
 
+  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+
   const data = await res.json();
   
-  try {
-    const parsed = JSON.parse(data.response);
-
-    const finalOffer: GeneratedOffer = {
-      headline: parsed.headline || "Special Offer",
-      sub_text: parsed.sub_text || "Limited time discount",
-      discount_pct: Number(parsed.discount_pct) || 5,
-      visual_mood: parsed.visual_mood || "warm_amber",
-      cta_label: parsed.cta_label || "Get it now",
-      expiry_minutes: Number(parsed.expiry_minutes) || 15,
-    };
-
-    return finalOffer;
-  } catch (e) {
-    console.error("Invalid JSON content, returning fallback");
-    return generateFallbackOffer(signal);
+  const parsed = extractJSON(data.response) as GeneratedOffer;
+  if (!parsed.headline || typeof parsed.discount_pct !== "number") {
+    throw new Error("JSON incomplete from Phi-3");
   }
+  
+  parsed.discount_pct = Math.min(parsed.discount_pct, signal.max_discount_pct);
+  return parsed;
 }
 
 export function generateFallbackOffer(signal: IntentSignal): GeneratedOffer {
