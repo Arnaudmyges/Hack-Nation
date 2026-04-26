@@ -2,6 +2,7 @@ import {
   View, Text, ScrollView,
   TouchableOpacity, TextInput,
   Alert, ActivityIndicator,
+  StyleSheet,Platform
 } from "react-native";
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
@@ -15,56 +16,29 @@ interface Template {
   trigger_time_end: string;
   trigger_weather: string[];
   trigger_payone_threshold: number;
-  product_id?: string;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  in_stock: boolean;
-}
-
-interface ActiveRule {
-  max_discount_pct: number;
-  trigger_time_start: string;
-  trigger_time_end: string;
-  trigger_weather: string[];
-  trigger_payone_threshold: number;
 }
 
 export default function OfferTemplatesScreen() {
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [currentRule, setCurrentRule] = useState<ActiveRule | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [newTemplateName, setNewTemplateName] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  // Champs du formulaire
+  const [name, setName] = useState("");
+  const [maxDiscount, setMaxDiscount] = useState("20");
+  const [timeStart, setTimeStart] = useState("11:00");
+  const [timeEnd, setTimeEnd] = useState("17:00");
+  const [threshold, setThreshold] = useState("35");
+  const [selectedWeather, setSelectedWeather] = useState<string[]>(["rain", "cold"]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const [{ data: tmplData }, { data: prodData }] = await Promise.all([
-        supabase.from("offer_templates").select("*").order("created_at", { ascending: false }),
-        supabase.from("products").select("*").eq("in_stock", true),
-      ]);
-      setTemplates(tmplData ?? []);
-      setProducts(prodData ?? []);
-
-      if (user) {
-        const { data: merchant } = await supabase
-          .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
-        if (merchant) {
-          const { data: rule } = await supabase
-            .from("merchant_rules").select("*")
-            .eq("merchant_id", merchant.id).eq("active", true).maybeSingle();
-          setCurrentRule(rule ?? null);
-        }
-      }
+      const { data } = await supabase
+        .from("offer_templates")
+        .select("*")
+        .order("created_at", { ascending: false });
+      setTemplates(data ?? []);
     } finally {
       setLoading(false);
     }
@@ -72,307 +46,216 @@ export default function OfferTemplatesScreen() {
 
   useFocusEffect(useCallback(() => { fetchData(); }, []));
 
-  // ── Create a template from current merchant_rules ───────────
+  const toggleWeather = (w: string) => {
+    setSelectedWeather(prev => 
+      prev.includes(w) ? prev.filter(x => x !== w) : [...prev, w]
+    );
+  };
+
   const createTemplate = async () => {
-    if (!newTemplateName.trim()) {
-      Alert.alert("Name required", "Give your template a name before saving.");
+    if (!name.trim()) {
+      Alert.alert("Erreur", "Le nom du template est obligatoire");
       return;
     }
+    
     setCreating(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
       const { data: merchant } = await supabase
-        .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
-      if (!merchant) throw new Error("No merchant linked to this account");
+        .from("merchants").select("id").eq("owner_id", user?.id).maybeSingle();
 
-      const { data: rule } = await supabase
-        .from("merchant_rules").select("*")
-        .eq("merchant_id", merchant.id).eq("active", true).maybeSingle();
+      if (!merchant) throw new Error("Marchand non trouvé");
 
-      const { error: insertError } = await supabase.from("offer_templates").insert({
+      const { error } = await supabase.from("offer_templates").insert({
         merchant_id: merchant.id,
-        name: newTemplateName.trim(),
-        max_discount_pct: rule?.max_discount_pct ?? 20,
-        trigger_time_start: rule?.trigger_time_start ?? "11:00",
-        trigger_time_end: rule?.trigger_time_end ?? "17:00",
-        trigger_weather: rule?.trigger_weather ?? ["cold", "rain"],
-        trigger_payone_threshold: rule?.trigger_payone_threshold ?? 35,
-        product_id: selectedProductId ?? null,
+        name: name.trim(),
+        max_discount_pct: Number(maxDiscount),
+        trigger_time_start: timeStart,
+        trigger_time_end: timeEnd,
+        trigger_weather: selectedWeather,
+        trigger_payone_threshold: Number(threshold),
       });
 
-      if (insertError) throw new Error(insertError.message);
+      if (error) throw error;
 
-      setNewTemplateName("");
-      setSelectedProductId(null);
-      await fetchData();
-      Alert.alert("Saved", "Template created from your current rule.");
+      setName("");
+      fetchData();
+      Alert.alert("Succès", "Template sauvegardé !");
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Erreur", e.message);
     } finally {
       setCreating(false);
     }
   };
 
-  // ── Apply a template → updates the active merchant_rule ─────
-  const applyTemplate = async (templateId: string, productId: string) => {
-    setApplyingId(templateId);
+  const performDelete = async (id: string) => {
     try {
-      const { data: tmpl } = await supabase
-        .from("offer_templates").select("*").eq("id", templateId).maybeSingle();
-      if (!tmpl) throw new Error("Template not found");
+      const { error } = await supabase.from("offer_templates").delete().eq("id", id);
+      
+      if (error) {
+        throw error;
+      }
 
-      const { error: deactivateError } = await supabase
-        .from("merchant_rules")
-        .update({ active: false })
-        .eq("merchant_id", tmpl.merchant_id);
-      if (deactivateError) throw new Error(deactivateError.message);
-
-      const { error: insertError } = await supabase.from("merchant_rules").insert({
-        merchant_id: tmpl.merchant_id,
-        max_discount_pct: tmpl.max_discount_pct,
-        trigger_weather: tmpl.trigger_weather,
-        trigger_time_start: tmpl.trigger_time_start,
-        trigger_time_end: tmpl.trigger_time_end,
-        trigger_payone_threshold: tmpl.trigger_payone_threshold,
-        product_id: productId || null,
-        active: true,
-      });
-      if (insertError) throw new Error(insertError.message);
-
-      await fetchData();
-      Alert.alert("Applied", `Template "${tmpl.name}" is now active.`);
+      // Mise à jour de l'affichage immédiatement
+      setTemplates(prevTemplates => prevTemplates.filter(tmpl => tmpl.id !== id));
+      
     } catch (e: any) {
-      Alert.alert("Error", e.message);
-    } finally {
-      setApplyingId(null);
+      console.error("Erreur lors de la suppression:", e);
+      if (Platform.OS !== "web") {
+        Alert.alert("Erreur de suppression", e.message);
+      } else {
+        alert("Erreur de suppression : " + e.message);
+      }
     }
   };
 
-  // ── Delete a template ────────────────────────────────────────
-  const deleteTemplate = async (id: string) => {
-    Alert.alert("Delete template", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete", style: "destructive",
-        onPress: async () => {
-          const { error } = await supabase.from("offer_templates").delete().eq("id", id);
-          if (error) {
-            Alert.alert("Error", error.message);
-            return;
-          }
-          fetchData();
+  // La fonction déclenchée par le bouton
+  const deleteTemplate = (id: string) => {
+    console.log("Demande de suppression pour l'ID :", id);
+
+    if (Platform.OS === "web") {
+      // Sur le web, on utilise la boîte de dialogue standard du navigateur
+      const confirmDelete = window.confirm("Confirmer la suppression ?");
+      if (confirmDelete) {
+        performDelete(id);
+      }
+    } else {
+      // Sur mobile, on utilise l'alerte native de React Native
+      Alert.alert("Supprimer", "Confirmer la suppression ?", [
+        { text: "Annuler", style: "cancel" },
+        { 
+          text: "Supprimer", 
+          style: "destructive", 
+          onPress: () => performDelete(id)
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   if (loading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color="#E65100" />
+         <ActivityIndicator color="#E65100" />
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#FAFAF8" }}
-      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-    >
-      {/* ── Create new template ── */}
-      <View style={{
-        backgroundColor: "#fff", borderRadius: 14,
-        padding: 16, marginBottom: 20,
-        borderWidth: 1, borderColor: "#F1EFE8",
-      }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: "#2C2C2A", marginBottom: 8 }}>
-          💾 Save current rule as template
-        </Text>
+    <ScrollView style={{ flex: 1, backgroundColor: "#FAFAF8" }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      
+      {/* --- FORMULAIRE DE CRÉATION --- */}
+      <View style={styles.formContainer}>
+        <Text style={{ fontSize: 16, fontWeight: "700", marginBottom: 12, color: "#2C2C2A" }}>🆕 Nouveau Template</Text>
+        
+        <Text style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Nom du template</Text>
+        <TextInput value={name} onChangeText={setName} placeholder="Ex: Happy Hour Pluie" placeholderTextColor="#B4B2A9" style={styles.input} />
 
-        {/* Current rule preview */}
-        {currentRule ? (
-          <View style={{
-            backgroundColor: "#F1EFE8", borderRadius: 8,
-            padding: 10, marginBottom: 12,
-          }}>
-            <Text style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Current active rule</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              <View style={{ backgroundColor: "#FFF3E0", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 11, color: "#E65100", fontWeight: "600" }}>
-                  max {currentRule.max_discount_pct}%
-                </Text>
-              </View>
-              <View style={{ backgroundColor: "#E3F2FD", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 11, color: "#1565C0", fontWeight: "600" }}>
-                  {currentRule.trigger_time_start} – {currentRule.trigger_time_end}
-                </Text>
-              </View>
-              <View style={{ backgroundColor: "#E8F5E9", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>
-                  traffic &lt;{currentRule.trigger_payone_threshold}%
-                </Text>
-              </View>
-              {currentRule.trigger_weather.map(w => (
-                <View key={w} style={{ backgroundColor: "#E8F5E9", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>{w}</Text>
-                </View>
-              ))}
-            </View>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Remise Max (%)</Text>
+            <TextInput value={maxDiscount} onChangeText={setMaxDiscount} keyboardType="numeric" style={styles.input} />
           </View>
-        ) : (
-          <View style={{ backgroundColor: "#FFF3E0", borderRadius: 8, padding: 10, marginBottom: 12 }}>
-            <Text style={{ fontSize: 11, color: "#E65100" }}>
-              No active rule found — save a rule first in the Rules screen.
-            </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Seuil Payone (%)</Text>
+            <TextInput value={threshold} onChangeText={setThreshold} keyboardType="numeric" style={styles.input} />
           </View>
-        )}
+        </View>
 
-        <TextInput
-          value={newTemplateName}
-          onChangeText={setNewTemplateName}
-          placeholder='e.g. "Quiet afternoon coffee"'
-          placeholderTextColor="#B4B2A9"
-          style={{
-            backgroundColor: "#F1EFE8", borderRadius: 8,
-            padding: 12, fontSize: 13, color: "#2C2C2A",
-            marginBottom: 10,
-          }}
-        />
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Heure de début</Text>
+            <TextInput value={timeStart} onChangeText={setTimeStart} placeholder="11:00" placeholderTextColor="#B4B2A9" style={styles.input} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>Heure de fin</Text>
+            <TextInput value={timeEnd} onChangeText={setTimeEnd} placeholder="17:00" placeholderTextColor="#B4B2A9" style={styles.input} />
+          </View>
+        </View>
 
-        <Text style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>
-          Link to a product (optional)
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 12 }}>
-          <TouchableOpacity
-            onPress={() => setSelectedProductId(null)}
-            style={{
-              paddingHorizontal: 12, paddingVertical: 6,
-              borderRadius: 20, marginRight: 8,
-              backgroundColor: !selectedProductId ? "#E65100" : "#F1EFE8",
-            }}
-          >
-            <Text style={{
-              fontSize: 12, fontWeight: "600",
-              color: !selectedProductId ? "#fff" : "#5F5E5A",
-            }}>
-              None
-            </Text>
-          </TouchableOpacity>
-          {products.map(p => (
-            <TouchableOpacity
-              key={p.id}
-              onPress={() => setSelectedProductId(p.id)}
-              style={{
-                paddingHorizontal: 12, paddingVertical: 6,
-                borderRadius: 20, marginRight: 8,
-                backgroundColor: selectedProductId === p.id ? "#E65100" : "#F1EFE8",
-              }}
-            >
-              <Text style={{
-                fontSize: 12, fontWeight: "600",
-                color: selectedProductId === p.id ? "#fff" : "#5F5E5A",
-              }}>
-                {p.name}
-              </Text>
+        <Text style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Météo déclencheuse</Text>
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 15 }}>
+          {["rain", "cold", "overcast", "sunny"].map(w => (
+            <TouchableOpacity key={w} onPress={() => toggleWeather(w)} 
+              style={[styles.badge, { backgroundColor: selectedWeather.includes(w) ? "#E65100" : "#F1EFE8" }]}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: selectedWeather.includes(w) ? "#fff" : "#5F5E5A" }}>{w}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
 
-        <TouchableOpacity
-          onPress={createTemplate}
-          disabled={creating || !currentRule}
-          style={{
-            backgroundColor: creating || !currentRule ? "#B4B2A9" : "#E65100",
-            borderRadius: 10, paddingVertical: 12, alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
-            {creating ? "Saving..." : "Save as template"}
-          </Text>
+        <TouchableOpacity onPress={createTemplate} disabled={creating} style={styles.saveBtn}>
+          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>{creating ? "Création..." : "Sauvegarder le template"}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Templates list ── */}
-      <Text style={{ fontSize: 14, fontWeight: "700", color: "#2C2C2A", marginBottom: 10 }}>
-        Saved templates ({templates.length})
-      </Text>
-
+      {/* --- LISTE DES TEMPLATES --- */}
+      <Text style={{ fontSize: 14, fontWeight: "700", color: "#2C2C2A", marginBottom: 10 }}>Mes Templates ({templates.length})</Text>
+      
       {templates.length === 0 ? (
-        <View style={{
-          alignItems: "center", paddingVertical: 32,
-          backgroundColor: "#F1EFE8", borderRadius: 12,
-        }}>
-          <Text style={{ fontSize: 32, marginBottom: 8 }}>📋</Text>
-          <Text style={{ fontSize: 13, color: "#888" }}>No templates yet</Text>
-          <Text style={{ fontSize: 11, color: "#B4B2A9", marginTop: 4 }}>
-            Save your current rule above to reuse it
-          </Text>
-        </View>
+         <View style={{ alignItems: "center", paddingVertical: 32, backgroundColor: "#F1EFE8", borderRadius: 12 }}>
+            <Text style={{ fontSize: 32, marginBottom: 8 }}>📋</Text>
+            <Text style={{ fontSize: 13, color: "#888" }}>Aucun template pour le moment</Text>
+         </View>
       ) : (
         templates.map(tmpl => (
-          <View key={tmpl.id} style={{
-            backgroundColor: "#fff", borderRadius: 12,
-            padding: 14, marginBottom: 10,
-            borderWidth: 1, borderColor: "#F1EFE8",
-          }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#2C2C2A", marginBottom: 6 }}>
-              {tmpl.name}
-            </Text>
-
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-              <View style={{ backgroundColor: "#FFF3E0", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 11, color: "#E65100", fontWeight: "600" }}>
-                  max {tmpl.max_discount_pct}%
-                </Text>
+          <View key={tmpl.id} style={styles.card}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: "700", color: "#2C2C2A", marginBottom: 4 }}>{tmpl.name}</Text>
+              <Text style={{ fontSize: 11, color: "#888" }}>Max {tmpl.max_discount_pct}% • {tmpl.trigger_time_start}-{tmpl.trigger_time_end} • Trafic &lt;{tmpl.trigger_payone_threshold}%</Text>
+              <View style={{ flexDirection: "row", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                  {tmpl.trigger_weather.map(w => (
+                    <View key={w} style={{ backgroundColor: "#E8F5E9", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, color: "#2E7D32", fontWeight: "600" }}>{w}</Text>
+                    </View>
+                  ))}
               </View>
-              <View style={{ backgroundColor: "#E3F2FD", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 11, color: "#1565C0", fontWeight: "600" }}>
-                  {tmpl.trigger_time_start} – {tmpl.trigger_time_end}
-                </Text>
-              </View>
-              <View style={{ backgroundColor: "#E8F5E9", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>
-                  traffic &lt;{tmpl.trigger_payone_threshold}%
-                </Text>
-              </View>
-              {tmpl.trigger_weather.map(w => (
-                <View key={w} style={{ backgroundColor: "#E8F5E9", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>{w}</Text>
-                </View>
-              ))}
             </View>
-
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TouchableOpacity
-                onPress={() => applyTemplate(tmpl.id, tmpl.product_id ?? products[0]?.id ?? "")}
-                disabled={applyingId === tmpl.id}
-                style={{
-                  flex: 1, backgroundColor: applyingId === tmpl.id ? "#B4B2A9" : "#2E7D32",
-                  borderRadius: 8, paddingVertical: 8, alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>
-                  {applyingId === tmpl.id ? "Applying..." : "▶ Apply"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => deleteTemplate(tmpl.id)}
-                style={{
-                  paddingHorizontal: 14, paddingVertical: 8,
-                  backgroundColor: "#FFEBEE", borderRadius: 8, alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#C62828", fontWeight: "600", fontSize: 12 }}>
-                  Delete
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => deleteTemplate(tmpl.id)} style={{ padding: 10, backgroundColor: "#FFEBEE", borderRadius: 8 }}>
+              <Text style={{ color: "#C62828", fontSize: 12, fontWeight: "600" }}>Supprimer</Text>
+            </TouchableOpacity>
           </View>
         ))
       )}
     </ScrollView>
   );
 }
+
+// Les styles gérés correctement pour TypeScript
+const styles = StyleSheet.create({
+  formContainer: { 
+    backgroundColor: "#fff", 
+    borderRadius: 14, 
+    padding: 16, 
+    marginBottom: 20, 
+    borderWidth: 1, 
+    borderColor: "#F1EFE8" 
+  },
+  input: { 
+    backgroundColor: "#F1EFE8", 
+    borderRadius: 8, 
+    padding: 12, 
+    marginBottom: 12, 
+    fontSize: 13,
+    color: "#2C2C2A"
+  },
+  badge: { 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 20 
+  },
+  saveBtn: { 
+    backgroundColor: "#E65100", 
+    borderRadius: 10, 
+    paddingVertical: 14, 
+    alignItems: "center" 
+  },
+  card: { 
+    backgroundColor: "#fff", 
+    borderRadius: 12, 
+    padding: 14, 
+    marginBottom: 10, 
+    flexDirection: "row", 
+    alignItems: "center", 
+    borderWidth: 1, 
+    borderColor: "#F1EFE8" 
+  }
+});

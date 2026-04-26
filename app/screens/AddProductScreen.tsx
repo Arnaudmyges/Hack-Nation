@@ -1,6 +1,6 @@
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from "react-native";
-import { useState } from "react";
 import { supabase } from "../services/supabaseClient";
+import { useState} from "react";
 
 const CATEGORIES = ["cafe", "bakery", "retail", "restaurant"];
 
