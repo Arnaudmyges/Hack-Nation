@@ -57,9 +57,15 @@ export function useOfferPipeline() {
       let triggeredRule = null;
       let triggeredSignals: string[] = [];
 
-      for (const merchant of ctx.nearbyMerchants) {
-        for (const rule of merchant.merchant_rules ?? []) {
+      for (const merchant of (ctx.nearbyMerchants || [])) {
+        
+        const rules = Array.isArray(merchant.merchant_rules) 
+          ? merchant.merchant_rules 
+          : [];
+
+        for (const rule of rules) {
           const result = evaluateTrigger(ctx, rule);
+          
           if (result.triggered) {
             triggeredMerchant = merchant;
             triggeredRule = rule;
@@ -67,6 +73,7 @@ export function useOfferPipeline() {
             break;
           }
         }
+        
         if (triggeredMerchant) break;
       }
 
