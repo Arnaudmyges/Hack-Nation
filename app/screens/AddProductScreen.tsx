@@ -1,7 +1,6 @@
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from "react-native";
 import { supabase } from "../services/supabaseClient";
-import { useState, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+import { useState} from "react";
 
 const CATEGORIES = ["cafe", "bakery", "retail", "restaurant"];
 
