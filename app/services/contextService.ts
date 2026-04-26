@@ -15,7 +15,6 @@ export interface ContextState {
   nearbyMerchants: any[];
 }
 
-// ─── Météo réelle ────────────────────────────────────────────
 export async function fetchWeather(lat: number, lng: number): Promise<WeatherData> {
   const res = await fetch(
     `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${process.env.EXPO_PUBLIC_OWM_KEY}&units=metric&lang=fr`
@@ -57,9 +56,7 @@ export async function fetchNearbyMerchants(lat: number, lng: number) {
   });
 }
 
-// ─── Contexte réel ───────────────────────────────────────────
 export async function fetchRealContext(): Promise<ContextState> {
-  // Position fixe Stuttgart pour la démo web (expo-location limité sur navigateur)
   const lat = 48.7758;
   const lng = 9.1829;
 
@@ -77,7 +74,6 @@ export async function fetchRealContext(): Promise<ContextState> {
   };
 }
 
-// ─── Contexte forcé pour la démo ─────────────────────────────
 export async function fetchDemoContext(): Promise<ContextState> {
   const merchants = await fetchNearbyMerchants(48.7758, 9.1829);
   return {
@@ -89,7 +85,6 @@ export async function fetchDemoContext(): Promise<ContextState> {
   };
 }
 
-// ─── Évaluation du déclenchement ─────────────────────────────
 export function evaluateTrigger(ctx: ContextState, rule: any) {
   const hits: string[] = [];
 

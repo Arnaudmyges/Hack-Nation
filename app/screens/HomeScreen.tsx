@@ -5,18 +5,6 @@ import { testSupabase, testWeather } from "../tests/testSupabase";
 import { testOllamaParsing, testFallback } from "../tests/testOllama";
 import { testFullPipeline } from "../tests/testPipeline";
 
-// Offre factice pour tester le rendu — le vrai pipeline arrive en Sprint 3
-const MOCK_OFFER = {
-  headline: "Cold outside? Come in fast.",
-  sub_text: "-15% off all hot drinks",
-  discount_pct: 15,
-  visual_mood: "warm_amber" as const,
-  cta_label: "I want this",
-  expiry_minutes: 15,
-  merchant_name: "Café Müller",
-  distance_meters: 83,
-};
-
 export default function HomeScreen({ navigation }: any) {
   const { phase, offer, contextState, signals, error, trigger, reset } =
     useOfferPipeline();
@@ -229,4 +217,4 @@ export default function HomeScreen({ navigation }: any) {
     </ScrollView>
   );
 }
->>>>>>> 91f76da (sprint 2)
+
