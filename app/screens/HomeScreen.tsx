@@ -1,12 +1,12 @@
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
 import { useOfferPipeline } from "../hooks/useOfferPipeline";
 import { OfferCard } from "../components/OfferCard";
 import { testSupabase, testWeather } from "../tests/testSupabase";
 import { testOllamaParsing, testFallback } from "../tests/testOllama";
 import { testFullPipeline } from "../tests/testPipeline";
 import { useGeofencing } from "../hooks/useGeofencing";
-import { useEffect } from "react";
-
+import { useEffect, useState } from "react";
+import { supabase } from "../services/supabaseClient";
 
 export default function HomeScreen({ navigation }: any) {
   const { phase, offer, contextState, signals, error, trigger, reset } =
@@ -27,15 +27,59 @@ export default function HomeScreen({ navigation }: any) {
     startGeofencing();
   }, []);
 
-  const handleDecline = () => {
+  const handleDecline = async () => {
+    if (offer && offer.id) {
+      const { data: { session } } = await supabase.auth.getSession();
+    
+      if (session?.user) {
+        console.log("Enregistrement du refus pour l'offre:", offer.id);
+        
+        const { error } = await supabase
+          .from('offers')
+          .update({ 
+            status: 'declined',
+            user_id: session.user.id
+          })
+          .eq('id', offer.id);
+
+        if (error) console.error("Erreur lors du déclin:", error);
+      }
+    }
     reset();
   };
+  const [userName, setUserName] = useState("Chargement...");
 
+useEffect(() => {
+  async function getUserProfile() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", session.user.id)
+        .single();
+      if (data?.display_name) setUserName(data.display_name);
+    }
+  }
+  getUserProfile();
+
+  const unsubscribe = navigation.addListener('focus', () => {
+    getUserProfile();
+  });
+    return unsubscribe;
+  }, [navigation]);
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#FAFAF8" }}
-      contentContainerStyle={{ paddingBottom: 40 }}
-    >
+    <ScrollView style={{ flex: 1 }}>
+      {/* CUSTOM HEADER */}
+      <View style={styles.topHeader}>
+        <Text style={styles.appName}>Mia</Text>
+        <TouchableOpacity 
+          onPress={() => navigation.navigate('Account')}
+          style={styles.profileButton}
+        >
+          <Text style={styles.profileName}>{userName} 👤</Text>
+        </TouchableOpacity>
+      </View>
       {/* ── Context Panel ── */}
       <View
         style={{
@@ -288,4 +332,30 @@ export default function HomeScreen({ navigation }: any) {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  topHeader: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  appName: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#2C2C2A",
+  },
+  profileButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#E8E4DD",
+    borderRadius: 12,
+  },
+  profileName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#2C2C2A",
+  },
+});
 

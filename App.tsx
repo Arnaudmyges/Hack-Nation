@@ -18,6 +18,7 @@ import ConsentScreen from "./app/screens/ConsentScreen";
 // --- IMPORT ECRANS (USER JOURNEY - PERSON A) ---
 import HomeScreen from "./app/screens/HomeScreen";
 import WalletScreen from "./app/screens/WalletScreen";
+import AccountScreen from './app/screens/AccountScreen';
 
 // --- IMPORT ECRANS (MERCHANT PLATFORM - PERSON B) ---
 import MerchantDashboard from "./app/screens/MerchantDashboard";
@@ -113,7 +114,11 @@ export default function App() {
               component={WalletHistoryScreen} 
               options={{ title: "My Wallet" }} 
             />
-
+            <Stack.Screen 
+              name="Account" 
+              component={AccountScreen} 
+              options={{ title: "Mon Profil" }} 
+            />
             <Stack.Screen
               name="MerchantDashboard"
               component={MerchantDashboard}
