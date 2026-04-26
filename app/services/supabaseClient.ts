@@ -10,6 +10,9 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      ...({
+        lockType: 'mem',
+      } as any),
     },
   }
 );

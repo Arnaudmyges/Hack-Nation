@@ -68,14 +68,28 @@ export default function App() {
   }, []);
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("display_name, role")
-      .eq("id", userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, role")
+        .eq("id", userId)
+        .single();
 
-    setHasConsent(!!data?.display_name);
-    setUserRole((data?.role as "customer" | "merchant") ?? "customer");
+      if (error) {
+        console.warn("Profil non trouvé ou erreur RLS:", error.message);
+        // IMPORTANT: Si le profil n'existe pas encore, 
+        // on doit quand même arrêter le chargement !
+        setHasConsent(false); 
+      } else if (data) {
+        setHasConsent(!!data.display_name);
+        setUserRole(data.role as "customer" | "merchant");
+      }
+    } catch (e) {
+      console.error("Crash dans loadProfile:", e);
+    } finally {
+      // C'EST CETTE LIGNE QUI TUE LE ROND ORANGE
+      setLoading(false);
+    }
   }
 
   if (loading) {
