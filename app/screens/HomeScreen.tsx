@@ -13,8 +13,19 @@ export default function HomeScreen({ navigation }: any) {
     useOfferPipeline();
   console.log("Phase actuelle:", phase);
   console.log("Offre:", offer?.headline ?? "—");
-  const handleAccept = () => {
-    if (!offer) return;
+  const handleAccept = async () => {
+  if (!offer || !offer.id) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase
+        .from('offers')
+        .update({ 
+          status: 'accepted',
+          user_id: session.user.id 
+        })
+        .eq('id', offer.id);
+    }
     navigation.navigate("Wallet", { offer });
     reset();
   };

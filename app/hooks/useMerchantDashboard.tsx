@@ -21,6 +21,10 @@ export interface RecentRedemption {
   offers: {
     headline: string;
     discount_pct: number;
+    user_id: string; // Ajouté
+    profiles: {       // Ajouté
+      display_name: string;
+    } | null;
     merchants: {
       name: string;
     };
@@ -54,7 +58,8 @@ export function useMerchantDashboard() {
         .select(`
           id, token, status, redeemed_at, created_at,
           offers (
-            headline, discount_pct,
+            headline, discount_pct, user_id,
+            profiles ( display_name ),
             merchants ( name )
           )
         `)
@@ -63,14 +68,22 @@ export function useMerchantDashboard() {
 
       if (!offers) return;
 
-      // ── FIX ICI : On aplatit les tableaux [0] de Supabase ──────────
-      const formattedRedemptions: RecentRedemption[] = (redemptions || []).map((r: any) => ({
-        ...r,
-        offers: {
-          ...r.offers[0],
-          merchants: r.offers[0]?.merchants[0] || { name: "Inconnu" }
-        }
-      }));
+      const formattedRedemptions: RecentRedemption[] = (redemptions || []).map((r: any) => {
+        const offerData = Array.isArray(r.offers) ? r.offers[0] : r.offers;
+        
+        return {
+          ...r,
+          offers: {
+            ...offerData,
+            merchants: Array.isArray(offerData?.merchants) 
+              ? offerData.merchants[0] 
+              : (offerData?.merchants || { name: "Inconnu" }),
+            profiles: Array.isArray(offerData?.profiles)
+              ? offerData.profiles[0]
+              : (offerData?.profiles || null)
+          }
+        };
+      });
 
       const generated = offers.length;
       const accepted = offers.filter((o) =>

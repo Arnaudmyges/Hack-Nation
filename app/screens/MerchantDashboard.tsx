@@ -47,29 +47,44 @@ function RedemptionRow({ item }: { item: any }) {
       })
     : "—";
 
+  const userName = item.offers?.profiles?.display_name || "Anonyme";
+  // Ou pour le style "Dashboard" :
+  const userLabel = item.offers?.profiles?.display_name 
+    ? `👤 ${item.offers.profiles.display_name}` 
+    : `🆔 User #${item.offers.user_id?.slice(-4)}`;
+
   return (
     <View style={{
       flexDirection: "row", alignItems: "center",
-      paddingVertical: 10,
+      paddingVertical: 12, // Légèrement plus d'espace
       borderBottomWidth: 1, borderBottomColor: "#F1EFE8",
     }}>
       <Text style={{ fontSize: 18, marginRight: 10 }}>
         {isRedeemed ? "✅" : "⏳"}
       </Text>
+      
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 13, fontWeight: "600", color: "#2C2C2A" }} numberOfLines={1}>
           {item.offers?.headline ?? "—"}
         </Text>
-        <Text style={{ fontSize: 11, color: "#888", marginTop: 1 }}>
-          {item.offers?.merchants?.name ?? "—"} · token: {item.token}
-        </Text>
+        
+        {/* {userLabel l'utilisateur qui a reçu l'offre */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+          <Text style={{ fontSize: 11, color: "#7F77DD", fontWeight: "700" }}>
+            👤 {userName}
+          </Text>
+          <Text style={{ fontSize: 11, color: "#888" }}>
+            {" "}· token: {item.token}
+          </Text>
+        </View>
       </View>
+
       <View style={{ alignItems: "flex-end" }}>
         <Text style={{
           fontSize: 13, fontWeight: "700",
           color: isRedeemed ? "#2E7D32" : "#888",
         }}>
-          −{item.offers?.discount_pct ?? 0}%
+           {item.offers?.discount_pct ?? 0}%
         </Text>
         <Text style={{ fontSize: 10, color: "#B4B2A9", marginTop: 2 }}>
           {timeFormatted}
