@@ -4,6 +4,9 @@ import { OfferCard } from "../components/OfferCard";
 import { testSupabase, testWeather } from "../tests/testSupabase";
 import { testOllamaParsing, testFallback } from "../tests/testOllama";
 import { testFullPipeline } from "../tests/testPipeline";
+import { useGeofencing } from "../hooks/useGeofencing";
+import { useEffect } from "react";
+
 
 export default function HomeScreen({ navigation }: any) {
   const { phase, offer, contextState, signals, error, trigger, reset } =
@@ -15,6 +18,14 @@ export default function HomeScreen({ navigation }: any) {
     navigation.navigate("Wallet", { offer });
     reset();
   };
+  
+  const { startGeofencing } = useGeofencing((merchant) => {
+    if (phase === "idle") trigger(false);
+  });
+  
+  useEffect(() => {
+    startGeofencing();
+  }, []);
 
   const handleDecline = () => {
     reset();
@@ -53,6 +64,11 @@ export default function HomeScreen({ navigation }: any) {
             <Text style={{ fontSize: 12, color: "#5F5E5A" }}>
               ⏰ {contextState.hour}h · Stuttgart
             </Text>
+            {contextState.nearbyEvents?.length > 0 && (
+              <Text style={{ fontSize: 12, color: "#7F77DD", marginBottom: 4 }}>
+                🎉 {contextState.nearbyEvents[0].name} nearby
+              </Text>
+            )}
             {signals.length > 0 && (
               <View
                 style={{
