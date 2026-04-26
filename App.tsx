@@ -8,6 +8,7 @@ import WalletScreen from "./app/screens/WalletScreen";
 import MerchantDashboard from "./app/screens/MerchantDashboard";
 import MerchantScanScreen from "./app/screens/MerchantScanScreen";
 import MerchantRuleScreen from "./app/screens/MerchantRuleScreen";
+import OfferTemplatesScreen from "./app/screens/OfferTemplatesScreen";
 
 
 const Stack = createNativeStackNavigator();
@@ -50,6 +51,11 @@ export default function App() {
           name="MerchantRule"
           component={MerchantRuleScreen}
           options={{ title: "Rule Config" }}
+        />
+        <Stack.Screen
+          name="OfferTemplates"
+          component={OfferTemplatesScreen}
+          options={{ title: "Offer Templates" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

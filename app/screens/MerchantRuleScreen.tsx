@@ -1,8 +1,10 @@
 import {
   View, Text, ScrollView,
   TouchableOpacity, Switch,
+  Alert,
 } from "react-native";
 import { useState } from "react";
+import { supabase } from "../services/supabaseClient";
 
 interface Rule {
   max_discount_pct: number;
@@ -95,10 +97,39 @@ function WeatherBadge({
 export default function MerchantRuleScreen() {
   const [rule] = useState<Rule>(DEFAULT_RULE);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: merchant } = await supabase
+        .from("merchants")
+        .select("id")
+        .eq("owner_id", user.id)
+        .single();
+
+      if (!merchant) throw new Error("No merchant linked to this account");
+
+      await supabase.from("merchant_rules").upsert({
+        merchant_id: merchant.id,
+        max_discount_pct: rule.max_discount_pct,
+        trigger_time_start: rule.trigger_time_start,
+        trigger_time_end: rule.trigger_time_end,
+        trigger_weather: rule.trigger_weather,
+        trigger_payone_threshold: rule.trigger_payone_threshold,
+        active: rule.active,
+      });
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      Alert.alert("Error saving rule", e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
