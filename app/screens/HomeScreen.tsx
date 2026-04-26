@@ -170,47 +170,85 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* ── Bouton démo ── */}
       {phase === "idle" && (
-        <TouchableOpacity
-          onPress={() => trigger(true)}
-          style={{
-            margin: 16,
-            marginTop: 8,
-            backgroundColor: "#E65100",
-            borderRadius: 14,
-            paddingVertical: 16,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
-            🎬 Simuler arrivée de Mia
-          </Text>
-        </TouchableOpacity>
+        <View style={{ margin: 16, gap: 10 }}>
+          {/* Main demo button */}
+          <TouchableOpacity
+            onPress={() => trigger(true)}
+            style={{
+              backgroundColor: "#E65100",
+              borderRadius: 14, paddingVertical: 16,
+              alignItems: "center",
+              shadowColor: "#E65100",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 6,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
+              🎬 Simulate Mia's arrival
+            </Text>
+            <Text style={{ color: "#fff", fontSize: 11, opacity: 0.8, marginTop: 2 }}>
+              Cold · Café Müller 83m · Payone 22%
+            </Text>
+          </TouchableOpacity>
+
+          {/* Secondary: real context */}
+          <TouchableOpacity
+            onPress={() => trigger(false)}
+            style={{
+              backgroundColor: "#F1EFE8",
+              borderRadius: 14, paddingVertical: 12,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#5F5E5A", fontWeight: "600", fontSize: 13 }}>
+              📡 Use real context (live weather)
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* ── Navigation ── */}
-      <View style={{ flexDirection: "row", gap: 8, margin: 16 }}>
+      <View style={{ margin: 16, gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("MerchantDashboard")}
+            style={{
+              flex: 1, padding: 14,
+              backgroundColor: "#E8F5E9",
+              borderRadius: 12, alignItems: "center",
+            }}
+          >
+            <Text style={{ fontSize: 18, marginBottom: 2 }}>📊</Text>
+            <Text style={{ fontSize: 12, color: "#2E7D32", fontWeight: "600" }}>
+              Karl's Dashboard
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("MerchantScan")}
+            style={{
+              flex: 1, padding: 14,
+              backgroundColor: "#FFF3E0",
+              borderRadius: 12, alignItems: "center",
+            }}
+          >
+            <Text style={{ fontSize: 18, marginBottom: 2 }}>📷</Text>
+            <Text style={{ fontSize: 12, color: "#E65100", fontWeight: "600" }}>
+              Merchant Terminal
+            </Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
-          onPress={() => navigation.navigate("MerchantDashboard")}
+          onPress={() => navigation.navigate("MerchantRule")}
           style={{
-            flex: 1, padding: 12,
-            backgroundColor: "#E8F5E9",
-            borderRadius: 10, alignItems: "center",
+            padding: 14,
+            backgroundColor: "#F1EFE8",
+            borderRadius: 12, alignItems: "center",
           }}
         >
-          <Text style={{ fontSize: 12, color: "#2E7D32", fontWeight: "600" }}>
-            📊 Dashboard Karl
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => navigation.navigate("MerchantScan")}
-          style={{
-            flex: 1, padding: 12,
-            backgroundColor: "#FFF3E0",
-            borderRadius: 10, alignItems: "center",
-          }}
-        >
-          <Text style={{ fontSize: 12, color: "#E65100", fontWeight: "600" }}>
-            📷 Terminal scan
+          <Text style={{ fontSize: 12, color: "#5F5E5A", fontWeight: "600" }}>
+            ⚙️ Merchant rule config
           </Text>
         </TouchableOpacity>
       </View>
