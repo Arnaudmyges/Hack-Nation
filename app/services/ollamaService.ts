@@ -1,4 +1,5 @@
 import { MerchantRule } from "../screens/GoalPromptScreen";
+import { eventsToTags } from "./eventService";
 
 const OLLAMA_URL = "http://localhost:11434/api/generate";
 const MODEL = "phi3:mini";
@@ -138,6 +139,9 @@ export function buildIntentSignal(
   const dlat = (merchant.lat - ctx.lat) * 111000;
   const dlng = (merchant.lng - ctx.lng) * 111000 * Math.cos(ctx.lat * Math.PI / 180);
   const distance = Math.round(Math.sqrt(dlat * dlat + dlng * dlng));
+  const eventTags = eventsToTags(ctx.nearbyEvents ?? []);
+  tags.push(...eventTags);
+
 
   return {
     context_tags: tags,
