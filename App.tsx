@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ActivityIndicator, View } from "react-native";
+import WalletHistoryScreen from "./app/screens/WalletHistoryScreen";
 
 // --- IMPORT SUPABASE ---
 import { supabase } from "./app/services/supabaseClient";
@@ -17,7 +18,6 @@ import ConsentScreen from "./app/screens/ConsentScreen";
 // --- IMPORT ECRANS (USER JOURNEY - PERSON A) ---
 import HomeScreen from "./app/screens/HomeScreen";
 import WalletScreen from "./app/screens/WalletScreen";
-// import DemoNarrativeScreen from "./app/screens/DemoNarrativeScreen";
 
 // --- IMPORT ECRANS (MERCHANT PLATFORM - PERSON B) ---
 import MerchantDashboard from "./app/screens/MerchantDashboard";
@@ -31,7 +31,7 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [hasConsent, setHasConsent] = useState(false); // 👈 ajouter
+  const [hasConsent, setHasConsent] = useState(false);
 
   useEffect(() => {
     setupPushNotifications();
@@ -40,7 +40,6 @@ export default function App() {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
 
-      // 👇 appeler ici, pas définir séparément
       if (session?.user) {
         const { data } = await supabase
           .from("profiles")
@@ -62,7 +61,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Écran de chargement pendant que Supabase vérifie le token
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FAFAF8" }}>
@@ -81,7 +79,6 @@ export default function App() {
           headerTitleStyle: { fontWeight: "600" },
         }}
       >
-        {/* CONDITION D'ACCÈS : Si pas de session, on force le Login */}
         {!session ? (
           <Stack.Screen
             name="Login"
@@ -89,30 +86,32 @@ export default function App() {
             options={{ headerShown: false }}
           />
         ) : (
-          /* SI CONNECTÉ : Accès à toute l'application */
           <>
-            {/* Écran de consentement RGPD (Étape A2) */}
             <Stack.Screen
               name="Consent"
               component={ConsentScreen}
               options={{ title: "Privacy Consent", headerShown: false }}
             />
 
-            {/* Accueil */}
             <Stack.Screen
               name="Home"
               component={HomeScreen}
               options={{ title: "City Wallet" }}
             />
 
-            {/* Wallet & QR Code (Étape A3) */}
             <Stack.Screen
               name="Wallet"
               component={WalletScreen}
               options={{ title: "My Wallet" }}
             />
 
-            {/* --- SECTION MARCHAND --- */}
+            {/* ✅ Ajout de l'historique ici */}
+            <Stack.Screen 
+              name="WalletHistory" 
+              component={WalletHistoryScreen} 
+              options={{ title: "My Wallet" }} 
+            />
+
             <Stack.Screen
               name="MerchantDashboard"
               component={MerchantDashboard}

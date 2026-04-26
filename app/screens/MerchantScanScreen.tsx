@@ -13,8 +13,8 @@ function ValidationResult({ result, onReset }: { result: any, onReset: () => voi
       <Text style={{ fontSize: 20, fontWeight: "bold", color: isValid ? "#2E7D32" : "#C62828" }}>
         {isValid ? "Offre Validée !" : "Échec du scan"}
       </Text>
-      {result?.discount && (
-        <Text style={{ fontSize: 16, marginTop: 8 }}>Remise : {result.discount}%</Text>
+      {result?.discount_pct && (
+        <Text style={{ fontSize: 16, marginTop: 8 }}>Remise : {result.discount_pct}%</Text>
       )}
       <Text style={{ fontSize: 14, color: "#666", marginTop: 12, textAlign: 'center' }}>
         {result?.reason || "Token vérifié sur la blockchain/DB"}

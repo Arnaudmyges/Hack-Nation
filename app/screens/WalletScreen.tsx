@@ -14,10 +14,11 @@ async function fetchCashbackBalance(): Promise<number> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return 0;
   const { data } = await supabase
-    .from("cashback_transactions")
-    .select("amount")
-    .eq("user_id", user.id);
-  return (data ?? []).reduce((sum, t) => sum + t.amount, 0);
+    .from("profiles")
+    .select("cashback_balance")
+    .eq("id", user.id)
+    .single();
+  return data?.cashback_balance ?? 0;
 }
 
 export default function WalletScreen({ route, navigation }: any) {
@@ -206,6 +207,14 @@ export default function WalletScreen({ route, navigation }: any) {
           borderRadius: 12, alignItems: "center",
         }}
       >
+      <TouchableOpacity
+        onPress={() => navigation.navigate("WalletHistory")}
+        style={{ width: "100%", padding: 14, backgroundColor: "#E8F5E9",
+          borderRadius: 12, alignItems: "center", marginBottom: 8 }}>
+        <Text style={{ color: "#2E7D32", fontWeight: "600" }}>
+          📋 View wallet history
+        </Text>
+      </TouchableOpacity>
         <Text style={{ color: "#5F5E5A", fontWeight: "600" }}>
           ← Back to Home
         </Text>
