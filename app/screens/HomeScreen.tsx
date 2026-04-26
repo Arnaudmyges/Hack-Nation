@@ -83,7 +83,7 @@ useEffect(() => {
     <ScrollView style={{ flex: 1 }}>
       {/* CUSTOM HEADER */}
       <View style={styles.topHeader}>
-        <Text style={styles.appName}>Mia</Text>
+        <Text style={styles.appName}>User</Text>
         <TouchableOpacity 
           onPress={() => navigation.navigate('Account')}
           style={styles.profileButton}
@@ -274,7 +274,7 @@ useEffect(() => {
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
-              🎬 Simulate Mia's arrival
+              🎬 Simulate User's arrival
             </Text>
             <Text style={{ color: "#fff", fontSize: 11, opacity: 0.8, marginTop: 2 }}>
               Cold · Café Müller 83m · Payone 22%
@@ -310,7 +310,7 @@ useEffect(() => {
           >
             <Text style={{ fontSize: 18, marginBottom: 2 }}>📊</Text>
             <Text style={{ fontSize: 12, color: "#2E7D32", fontWeight: "600" }}>
-              Karl's Dashboard
+              Merchant's Dashboard
             </Text>
           </TouchableOpacity>
           <TouchableOpacity

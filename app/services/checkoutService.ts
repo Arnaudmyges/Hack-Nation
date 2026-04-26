@@ -54,44 +54,37 @@ export async function acceptOffer(
 export async function validateToken(token: string) {
   const { data, error } = await supabase
     .from("redemptions")
-    .select("*, offers(discount_pct, headline, merchants(name))")
+    .select(`
+      *,
+      offers (
+        id,
+        headline,
+        discount_pct,
+        merchant_id
+      )
+    `)
     .eq("token", token)
     .maybeSingle();
 
-  if (error || !data) {
-    return { valid: false, reason: "Token introuvable" };
-  }
+  if (error || !data) return { valid: false, reason: "Token introuvable" };
+  if (data.status === "redeemed") return { valid: false, reason: "Token déjà utilisé" };
 
-  if (data.status === "redeemed") {
-    return { valid: false, reason: "Token déjà utilisé" };
-  }
+  // On récupère le nom du marchand via la table 'merchants' séparément pour éviter les erreurs de jointure complexe
+  const { data: merchant } = await supabase
+    .from('merchants')
+    .select('name')
+    .eq('id', data.offers.merchant_id)
+    .maybeSingle();
 
-  const qrParsed = JSON.parse(data.qr_data);
-  if (new Date(qrParsed.expiresAt) < new Date()) {
-    return { valid: false, reason: "Offre expirée" };
-  }
-
-  await supabase
-    .from("redemptions")
-    .update({ status: "redeemed", redeemed_at: new Date().toISOString() })
-    .eq("token", token);
-
-  await supabase
-    .from("offers")
-    .update({ status: "redeemed" })
-    .eq("id", data.offer_id);
-
-  // Supabase joins return arrays for nested relations
-  const offer = Array.isArray(data.offers) ? data.offers[0] : data.offers;
-  const merchant = offer?.merchants
-    ? (Array.isArray(offer.merchants) ? offer.merchants[0] : offer.merchants)
-    : null;
+  // Mise à jour des statuts
+  await supabase.from("redemptions").update({ status: "redeemed", redeemed_at: new Date().toISOString() }).eq("token", token);
+  await supabase.from("offers").update({ status: "redeemed" }).eq("id", data.offer_id);
 
   return {
     valid: true,
-    discount_pct: offer?.discount_pct,
-    merchant_name: merchant?.name,
-    headline: offer?.headline,
+    discount_pct: data.offers?.discount_pct,
+    merchant_name: merchant?.name || "Boutique",
+    headline: data.offers?.headline,
   };
 }
 

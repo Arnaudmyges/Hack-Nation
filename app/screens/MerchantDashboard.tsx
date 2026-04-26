@@ -119,7 +119,7 @@ export default function MerchantDashboard({ navigation }: any) {  const { stats,
       }}>
         <View>
           <Text style={{ fontSize: 18, fontWeight: "700", color: "#2C2C2A" }}>
-            Karl's Dashboard
+            Merchant's Dashboard
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#4CAF50" }} />

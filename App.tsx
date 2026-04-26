@@ -123,7 +123,7 @@ export default function App() {
             <Stack.Screen
               name="MerchantDashboard"
               component={MerchantDashboard}
-              options={{ title: "Karl's Dashboard" }}
+              options={{ title: "Merchant's Dashboard" }}
             />
             <Stack.Screen
               name="MerchantScan"

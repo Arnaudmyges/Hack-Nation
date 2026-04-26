@@ -88,7 +88,7 @@ export default function AccountScreen() {
       {/* SECTION PRÉFÉRENCES (REFUS) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🚫 Mes préférences (Offres refusées)</Text>
-        <Text style={styles.infoText}>Mia ne vous proposera plus ces offres.</Text>
+        <Text style={styles.infoText}> On ne vous proposera plus ces offres.</Text>
         
         {declinedOffers.length === 0 ? (
           <Text style={styles.emptyText}>Aucun refus enregistré.</Text>
