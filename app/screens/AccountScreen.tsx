@@ -12,13 +12,15 @@ export default function AccountScreen() {
   useEffect(() => {
     fetchProfileAndPreferences();
   }, []);
-
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error("Erreur déconnexion:", error.message);
+  };
   async function fetchProfileAndPreferences() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // 1. Récupérer le nom réel
       const { data: profile } = await supabase
         .from('profiles')
         .select('display_name')
@@ -40,11 +42,10 @@ export default function AccountScreen() {
     }
   }
 
-  // Fonction pour supprimer une préférence (on remet le statut à 'expired' ou on supprime)
   async function removePreference(offerId: string) {
     const { error } = await supabase
       .from('offers')
-      .update({ status: 'expired' }) // On change le statut pour qu'il disparaisse des refus
+      .update({ status: 'expired' })
       .eq('id', offerId);
 
     if (!error) {
@@ -113,6 +114,13 @@ export default function AccountScreen() {
         <Text style={styles.sectionTitle}>💰 Mon Cashback</Text>
         <WalletHistoryScreen />
       </View>
+
+      {/* SECTION LOGOUT */}
+      <View style={styles.section}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Text style={styles.logoutBtnText}>Déconnexion</Text>
+        </TouchableOpacity>
+      </View>
       
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -137,5 +145,7 @@ const styles = StyleSheet.create({
   declinedText: { fontSize: 14, color: '#2C2C2A', fontWeight: '500' },
   deleteBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: '#FFEBEE' },
   deleteBtnText: { color: '#C62828', fontSize: 11, fontWeight: '700' },
-  emptyText: { color: '#ADADAD', fontStyle: 'italic', textAlign: 'center', padding: 10 }
+  emptyText: { color: '#ADADAD', fontStyle: 'italic', textAlign: 'center', padding: 10 },
+  logoutBtn: { backgroundColor: '#E65100', borderRadius: 8, padding: 12, alignItems: 'center' },
+  logoutBtnText: { color: '#FFF', fontWeight: 'bold' }
 });
