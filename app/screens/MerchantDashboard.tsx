@@ -157,6 +157,17 @@ export default function MerchantDashboard({ navigation }: any) {  const { stats,
         </Text>
         <Text style={{ fontSize: 13, color: "#888" }}>→</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => navigation.navigate("OfferTemplates")}
+        style={{
+          padding: 12, backgroundColor: "#E3F2FD",
+          borderRadius: 10, alignItems: "center", marginBottom: 10,
+        }}
+      >
+        <Text style={{ fontSize: 12, color: "#1565C0", fontWeight: "600" }}>
+          📋 Offer templates
+        </Text>
+      </TouchableOpacity>
 
       {/* Stats grid row 1 */}
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
