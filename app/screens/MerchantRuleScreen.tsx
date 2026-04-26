@@ -1,6 +1,6 @@
 import {
   View, Text, ScrollView, TouchableOpacity,
-  Switch, Alert, StyleSheet, StatusBar,
+  Switch, StyleSheet, StatusBar,
 } from "react-native";
 import { useEffect, useState } from "react";
 import { supabase } from "../services/supabaseClient";
@@ -42,6 +42,7 @@ export default function MerchantRuleScreen({ navigation }: any) {
   const [rule, setRule] = useState<Rule>(DEFAULT_RULE);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRule();
@@ -66,30 +67,37 @@ export default function MerchantRuleScreen({ navigation }: any) {
 
   async function handleSave() {
     setSaving(true);
-    // Hard 10-second cap — Supabase DB queries have no built-in timeout
+    setSaveError(null);
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Délai dépassé (10s) — vérifiez votre connexion Supabase")), 10000)
+      setTimeout(() => reject(new Error("Timeout (10s) — Supabase ne répond pas")), 10000)
     );
     try {
       await Promise.race([performSave(), timeout]);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
-      console.error("handleSave error:", e.message);
-      Alert.alert("Save failed", e.message);
+      console.error("❌ handleSave:", e.message);
+      setSaveError(e.message);
     } finally {
       setSaving(false);
     }
   }
 
   async function performSave() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) throw new Error("Not authenticated");
+    console.log("🔵 performSave: start");
+
+    const { data: { session }, error: sErr } = await supabase.auth.getSession();
+    console.log("🔵 session:", session?.user?.id, "err:", sErr?.message);
+    if (!session?.user) throw new Error("Non authentifié");
 
     const { data: merchant, error: mErr } = await supabase
-      .from("merchants").select("id").eq("owner_id", session.user.id).maybeSingle();
-    if (mErr) throw new Error(`Merchant lookup failed: ${mErr.message}`);
-    if (!merchant) throw new Error("Aucun marchand lié à ce compte (owner_id manquant)");
+      .from("merchants")
+      .select("id")
+      .eq("owner_id", session.user.id)
+      .maybeSingle();
+    console.log("🔵 merchant:", merchant?.id, "err:", mErr?.message);
+    if (mErr) throw new Error(`Merchant lookup: ${mErr.message}`);
+    if (!merchant) throw new Error("Aucun merchant lié à ce compte (colonne owner_id vide en base)");
 
     const payload = {
       merchant_id: merchant.id,
@@ -100,13 +108,15 @@ export default function MerchantRuleScreen({ navigation }: any) {
       trigger_payone_threshold: Number(rule.trigger_payone_threshold),
       active: rule.active,
     };
+    console.log("🔵 upsert payload:", JSON.stringify(payload));
 
-    // upsert replaces the check-then-insert pattern (single round trip)
-    const { error } = await supabase
+    const { error: uErr } = await supabase
       .from("merchant_rules")
       .upsert(payload, { onConflict: "merchant_id" });
+    console.log("🔵 upsert result error:", uErr?.message ?? "none");
 
-    if (error) throw new Error(`Save error: ${error.message}`);
+    if (uErr) throw new Error(`Upsert échoué: ${uErr.message}`);
+    console.log("✅ rule saved");
   }
 
   function toggleWeather(w: string) {
@@ -257,6 +267,13 @@ export default function MerchantRuleScreen({ navigation }: any) {
           </Text>
         </TouchableOpacity>
 
+        {saveError && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorTitle}>❌ Save failed</Text>
+            <Text style={styles.errorMsg}>{saveError}</Text>
+          </View>
+        )}
+
         {/* GDPR */}
         <View style={styles.gdprNote}>
           <Text style={styles.gdprText}>
@@ -356,4 +373,12 @@ const styles = StyleSheet.create({
 
   gdprNote: { backgroundColor: "#F5F3EE", borderRadius: 12, padding: 14 },
   gdprText: { fontSize: 11, color: "#7A7870", lineHeight: 17 },
+
+  errorBanner: {
+    backgroundColor: "#FFEBEE", borderRadius: 12,
+    padding: 14, marginBottom: 16,
+    borderWidth: 1, borderColor: "#FFCDD2",
+  },
+  errorTitle: { fontSize: 13, fontWeight: "700", color: "#C62828", marginBottom: 4 },
+  errorMsg: { fontSize: 12, color: "#B71C1C", lineHeight: 17 },
 });
