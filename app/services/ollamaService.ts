@@ -1,3 +1,5 @@
+import { MerchantRule } from "../screens/GoalPromptScreen";
+
 const OLLAMA_URL = "http://localhost:11434/api/generate";
 const MODEL = "phi3:mini";
 
@@ -145,4 +147,24 @@ export function buildIntentSignal(
     distance_meters: distance,
     language: "en",
   };
+}
+
+export async function extractRuleFromGoalPrompt(
+  goalPrompt: string
+): Promise<Partial<MerchantRule>> {
+  const res = await fetch("http://localhost:11434/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "phi3:mini",
+      system: `Rule extractor. Return ONLY valid JSON:
+{"max_discount_pct":20,"trigger_time_start":"14:00","trigger_time_end":"17:00","trigger_weather":["cold","rain"],"trigger_payone_threshold":35}`,
+      prompt: `Extract rule from: "${goalPrompt}"`,
+      stream: false,
+      options: { temperature: 0.2, num_predict: 120 },
+    }),
+  });
+  const data = await res.json();
+  const clean = data.response.replace(/```json|```/g, "").trim();
+  return JSON.parse(clean);
 }

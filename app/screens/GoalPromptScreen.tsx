@@ -1,4 +1,4 @@
-interface MerchantRule {
+export interface MerchantRule {
   max_discount_pct: number;
   trigger_time_start: string;
   trigger_time_end: string;
