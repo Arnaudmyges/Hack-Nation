@@ -79,8 +79,7 @@ function RedemptionRow({ item }: { item: any }) {
   );
 }
 
-export default function MerchantDashboard() {
-  const { stats, recentRedemptions, loading, refresh } = useMerchantDashboard();
+export default function MerchantDashboard({ navigation }: any) {  const { stats, recentRedemptions, loading, refresh } = useMerchantDashboard();
 
   if (loading) {
     return (
@@ -143,6 +142,21 @@ export default function MerchantDashboard() {
           </Text>
         </View>
       </View>
+      <TouchableOpacity
+        onPress={() => navigation.navigate("MerchantRule")}
+        style={{
+          backgroundColor: "#fff", borderRadius: 12,
+          padding: 12, marginBottom: 16,
+          flexDirection: "row", alignItems: "center",
+          justifyContent: "space-between",
+          borderWidth: 1, borderColor: "#F1EFE8",
+        }}
+      >
+        <Text style={{ fontSize: 13, color: "#2C2C2A", fontWeight: "600" }}>
+          ⚙️ Configure rule
+        </Text>
+        <Text style={{ fontSize: 13, color: "#888" }}>→</Text>
+      </TouchableOpacity>
 
       {/* Stats grid row 1 */}
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
