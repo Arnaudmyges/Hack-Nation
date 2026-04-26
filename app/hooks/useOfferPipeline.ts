@@ -130,7 +130,6 @@ export function useOfferPipeline() {
           trigger_time_start: "00:00",
           trigger_time_end: "23:00",
         };
-        triggeredSignals = ["démonstration forcée"];
       }
 
       setSignals(triggeredSignals);

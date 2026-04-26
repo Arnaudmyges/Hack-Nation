@@ -223,9 +223,10 @@ export default function HomeScreen({ navigation }: any) {
             </Text>
 
             <TouchableOpacity onPress={() => trigger(true)} style={styles.demoBtnPrimary}>
-              <Text style={styles.demoBtnPrimaryText}>🎬 Simulate Mia's arrival</Text>
+              <Text style={styles.demoBtnPrimaryText}>Simulate Mia's arrival</Text>
               <Text style={styles.demoBtnPrimaryHint}>Cold · Café Müller 83m · Payone 22%</Text>
             </TouchableOpacity>
+
           </View>
         )}
 
