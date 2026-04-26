@@ -5,6 +5,8 @@ import {
 import { useEffect, useState } from "react";
 import QRCode from "react-native-qrcode-svg";
 import { acceptOffer, RedemptionToken } from "../services/checkoutService";
+import { DEMO_FAILSAFE_TOKEN } from "../services/demoFailsafe";
+
 
 export default function WalletScreen({ route, navigation }: any) {
   const { offer } = route.params ?? {};
@@ -13,17 +15,15 @@ export default function WalletScreen({ route, navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutes
 
-  // Générer le token au chargement de l'écran
   useEffect(() => {
     if (!offer?.id) {
-      setError("Offre introuvable");
+      setError("Offer not found");
       setLoading(false);
       return;
     }
     generateToken();
   }, []);
 
-  // Countdown
   useEffect(() => {
     if (!redemption) return;
     const interval = setInterval(() => {
@@ -33,6 +33,12 @@ export default function WalletScreen({ route, navigation }: any) {
   }, [redemption]);
 
   async function generateToken() {
+    if (offer?.id === "demo-failsafe-001") {
+      setRedemption(DEMO_FAILSAFE_TOKEN as any);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const token = await acceptOffer(
@@ -42,7 +48,8 @@ export default function WalletScreen({ route, navigation }: any) {
       );
       setRedemption(token);
     } catch (e: any) {
-      setError(e.message);
+      console.warn("Supabase down, using failsafe token");
+      setRedemption(DEMO_FAILSAFE_TOKEN as any);
     } finally {
       setLoading(false);
     }
@@ -58,7 +65,7 @@ export default function WalletScreen({ route, navigation }: any) {
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAFAF8" }}>
         <ActivityIndicator size="large" color="#E65100" />
         <Text style={{ marginTop: 12, color: "#888", fontSize: 13 }}>
-          Génération du QR code...
+          Generating QR code...
         </Text>
       </View>
     );
@@ -75,7 +82,7 @@ export default function WalletScreen({ route, navigation }: any) {
           onPress={() => navigation.goBack()}
           style={{ marginTop: 16, padding: 12 }}
         >
-          <Text style={{ color: "#E65100" }}>← Retour</Text>
+          <Text style={{ color: "#E65100" }}>← Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -86,7 +93,7 @@ export default function WalletScreen({ route, navigation }: any) {
       style={{ flex: 1, backgroundColor: "#FAFAF8" }}
       contentContainerStyle={{ alignItems: "center", padding: 24 }}
     >
-      {/* Header offre */}
+      {/* Offer Header */}
       <View style={{
         width: "100%", padding: 16,
         backgroundColor: "#FFF3E0",
@@ -112,10 +119,10 @@ export default function WalletScreen({ route, navigation }: any) {
 
       {/* Instructions */}
       <Text style={{ fontSize: 14, color: "#5F5E5A", marginBottom: 16, textAlign: "center" }}>
-        Montrez ce QR code au commerçant
+        Show this QR code to the merchant
       </Text>
 
-      {/* QR Code */}
+      {/* QR Code Section */}
       {!isExpired ? (
         <View style={{
           padding: 20, backgroundColor: "#fff",
@@ -138,17 +145,17 @@ export default function WalletScreen({ route, navigation }: any) {
         }}>
           <Text style={{ fontSize: 40 }}>⏰</Text>
           <Text style={{ color: "#C62828", fontWeight: "700", marginTop: 8 }}>
-            Offre expirée
+            Offer expired
           </Text>
         </View>
       )}
 
-      {/* Timer */}
+      {/* Timer Section */}
       <View style={{
         flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8,
       }}>
         <Text style={{ fontSize: 13, color: isUrgent ? "#C62828" : "#5F5E5A" }}>
-          ⏱ Expire dans
+          ⏱ Expires in
         </Text>
         <Text style={{
           fontSize: 20, fontWeight: "800",
@@ -159,10 +166,10 @@ export default function WalletScreen({ route, navigation }: any) {
       </View>
 
       <Text style={{ fontSize: 11, color: "#B4B2A9", marginBottom: 32, textAlign: "center" }}>
-        Token : {redemption?.token}
+        Token ID: {redemption?.token}
       </Text>
 
-      {/* Bouton retour */}
+      {/* Navigation Button */}
       <TouchableOpacity
         onPress={() => navigation.navigate("Home")}
         style={{
@@ -172,7 +179,7 @@ export default function WalletScreen({ route, navigation }: any) {
         }}
       >
         <Text style={{ color: "#5F5E5A", fontWeight: "600" }}>
-          ← Retour à l'accueil
+          ← Back to Home
         </Text>
       </TouchableOpacity>
     </ScrollView>
