@@ -25,6 +25,8 @@ import MerchantScanScreen from "./app/screens/MerchantScanScreen";
 import MerchantRuleScreen from "./app/screens/MerchantRuleScreen";
 import OfferTemplatesScreen from "./app/screens/OfferTemplatesScreen";
 import GoalPromptScreen from "./app/screens/GoalPromptScreen";
+import ProductsScreen from "./app/screens/ProductsScreen";
+import AddProductScreen from "./app/screens/AddProductScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -136,6 +138,16 @@ export default function App() {
               name="GoalPrompt" 
               component={GoalPromptScreen} 
               options={{ title: "Set goal" }} 
+            />
+            <Stack.Screen 
+              name="Products" 
+              component={ProductsScreen} 
+              options={{ title: "Products" }} 
+            />
+            <Stack.Screen 
+              name="AddProduct" 
+              component={AddProductScreen} 
+              options={{ title: "Add product" }} 
             />
           </>
         )}
