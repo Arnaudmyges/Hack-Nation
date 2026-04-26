@@ -6,7 +6,17 @@ import { useEffect, useState } from "react";
 import QRCode from "react-native-qrcode-svg";
 import { acceptOffer, RedemptionToken } from "../services/checkoutService";
 import { DEMO_FAILSAFE_TOKEN } from "../services/demoFailsafe";
+import { supabase } from "../services/supabaseClient";
 
+async function fetchCashbackBalance(): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+  const { data } = await supabase
+    .from("cashback_transactions")
+    .select("amount")
+    .eq("user_id", user.id);
+  return (data ?? []).reduce((sum, t) => sum + t.amount, 0);
+}
 
 export default function WalletScreen({ route, navigation }: any) {
   const { offer } = route.params ?? {};
@@ -116,7 +126,15 @@ export default function WalletScreen({ route, navigation }: any) {
           </Text>
         </View>
       </View>
-
+      
+      {!isExpired && (
+        <CashbackChoice 
+          offer={offer} 
+          onUseCashback={() => alert("Cashback applied to your next scan!")}
+          onSkip={() => alert("You will earn cashback after this purchase!")}
+        />
+      )}
+      
       {/* Instructions */}
       <Text style={{ fontSize: 14, color: "#5F5E5A", marginBottom: 16, textAlign: "center" }}>
         Show this QR code to the merchant
@@ -183,5 +201,42 @@ export default function WalletScreen({ route, navigation }: any) {
         </Text>
       </TouchableOpacity>
     </ScrollView>
+  );
+}
+
+export function CashbackChoice({ offer, onUseCashback, onSkip }: any) {
+  const [balance, setBalance] = useState(0);
+
+  useEffect(() => {
+    fetchCashbackBalance().then(setBalance);
+  }, []);
+
+  const cashbackAmount = (8.50 * offer.discount_pct / 100).toFixed(2);
+
+  return (
+    <View style={{ width: '100%', padding: 16, backgroundColor: "#E8F5E9", borderRadius: 14, marginBottom: 16 }}>
+      <Text style={{ fontSize: 14, fontWeight: "600", color: "#1B5E20", marginBottom: 8 }}>
+        💳 Cashback available
+      </Text>
+      <Text style={{ fontSize: 13, color: "#2E7D32", marginBottom: 12 }}>
+        Your balance: €{balance.toFixed(2)} · This offer earns: +€{cashbackAmount}
+      </Text>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <TouchableOpacity 
+          onPress={onUseCashback}
+          style={{ flex: 1, backgroundColor: "#2E7D32", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
+          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>
+            Use €{balance > 0 ? balance.toFixed(2) : "0.00"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={onSkip}
+          style={{ flex: 1, backgroundColor: "#F1EFE8", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
+          <Text style={{ color: "#5F5E5A", fontWeight: "600", fontSize: 13 }}>
+            Earn +€{cashbackAmount}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
