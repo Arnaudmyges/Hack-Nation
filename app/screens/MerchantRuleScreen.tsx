@@ -170,7 +170,7 @@ export default function MerchantRuleScreen({ navigation }: any) {
         <View style={{ marginLeft: "auto", alignItems: "center" }}>
           <Switch
             value={rule.active}
-            onValueChange={() => {}}
+            onValueChange={(val) => setRule(r => ({ ...r, active: val }))}
             trackColor={{ true: "#4CAF50", false: "#D3D1C7" }}
           />
           <Text style={{ fontSize: 10, color: "#888", marginTop: 2 }}>
