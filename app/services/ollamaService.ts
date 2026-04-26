@@ -149,22 +149,44 @@ export function buildIntentSignal(
   };
 }
 
+const RULE_SYSTEM_PROMPT = `You are a rule extractor for a merchant discount system.
+Respond ONLY with valid JSON, without any text before or after, and without markdown tags.
+Strict format:
+{"max_discount_pct":20,"trigger_time_start":"14:00","trigger_time_end":"17:00","trigger_weather":["cold","rain"],"trigger_payone_threshold":35}
+Rules:
+- max_discount_pct: integer between 5 and 50, the maximum discount percentage the merchant is willing to offer
+- trigger_time_start / trigger_time_end: "HH:MM" format, the time window during which the offer can be triggered
+- trigger_weather: array of strings among ["cold","rain","hot","sun","wind"], weather conditions that trigger the offer
+- trigger_payone_threshold: integer between 10 and 80, the foot traffic / transaction volume threshold below which the offer triggers (e.g. 35 means "trigger when business is at less than 35% of normal volume")`;
+
 export async function extractRuleFromGoalPrompt(
   goalPrompt: string
 ): Promise<Partial<MerchantRule>> {
-  const res = await fetch("http://localhost:11434/api/generate", {
+  const res = await fetch(OLLAMA_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "phi3:mini",
-      system: `Rule extractor. Return ONLY valid JSON:
-{"max_discount_pct":20,"trigger_time_start":"14:00","trigger_time_end":"17:00","trigger_weather":["cold","rain"],"trigger_payone_threshold":35}`,
-      prompt: `Extract rule from: "${goalPrompt}"`,
+      model: MODEL,
+      system: RULE_SYSTEM_PROMPT,
+      prompt: `Extract a merchant discount rule from this goal. You MUST include all five fields (max_discount_pct, trigger_time_start, trigger_time_end, trigger_weather, trigger_payone_threshold): "${goalPrompt}"`,
       stream: false,
-      options: { temperature: 0.2, num_predict: 120 },
+      format: "json",
+      options: { temperature: 0.2, num_predict: 150 },
     }),
   });
+
+  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+
   const data = await res.json();
-  const clean = data.response.replace(/```json|```/g, "").trim();
-  return JSON.parse(clean);
+  const parsed = extractJSON(data.response) as Partial<MerchantRule>;
+
+  if (typeof parsed.max_discount_pct !== "number") {
+    throw new Error("JSON incomplete from Phi-3");
+  }
+
+  if (typeof parsed.trigger_payone_threshold !== "number") {
+    parsed.trigger_payone_threshold = 35;
+  }
+
+  return parsed;
 }

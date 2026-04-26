@@ -56,7 +56,7 @@ export async function validateToken(token: string) {
     .from("redemptions")
     .select("*, offers(discount_pct, headline, merchants(name))")
     .eq("token", token)
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
     return { valid: false, reason: "Token introuvable" };
@@ -66,19 +66,14 @@ export async function validateToken(token: string) {
     return { valid: false, reason: "Token déjà utilisé" };
   }
 
-  // Vérifier l'expiration depuis le qr_data
   const qrParsed = JSON.parse(data.qr_data);
   if (new Date(qrParsed.expiresAt) < new Date()) {
     return { valid: false, reason: "Offre expirée" };
   }
 
-  // Marquer comme utilisé (one-time use)
   await supabase
     .from("redemptions")
-    .update({
-      status: "redeemed",
-      redeemed_at: new Date().toISOString(),
-    })
+    .update({ status: "redeemed", redeemed_at: new Date().toISOString() })
     .eq("token", token);
 
   await supabase
@@ -86,11 +81,17 @@ export async function validateToken(token: string) {
     .update({ status: "redeemed" })
     .eq("id", data.offer_id);
 
+  // Supabase joins return arrays for nested relations
+  const offer = Array.isArray(data.offers) ? data.offers[0] : data.offers;
+  const merchant = offer?.merchants
+    ? (Array.isArray(offer.merchants) ? offer.merchants[0] : offer.merchants)
+    : null;
+
   return {
     valid: true,
-    discount_pct: data.offers?.discount_pct,
-    merchant_name: data.offers?.merchants?.name,
-    headline: data.offers?.headline,
+    discount_pct: offer?.discount_pct,
+    merchant_name: merchant?.name,
+    headline: offer?.headline,
   };
 }
 

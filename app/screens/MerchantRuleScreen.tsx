@@ -102,11 +102,11 @@ export default function MerchantRuleScreen({ navigation }: any) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data: merchant } = await supabase
-        .from("merchants").select("id").eq("owner_id", user.id).single();
+        .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
       if (!merchant) return;
       const { data } = await supabase
         .from("merchant_rules").select("*")
-        .eq("merchant_id", merchant.id).eq("active", true).single();
+        .eq("merchant_id", merchant.id).eq("active", true).maybeSingle();
       if (data) setRule({ ...DEFAULT_RULE, ...data });
     };
     loadRule();
@@ -124,11 +124,11 @@ export default function MerchantRuleScreen({ navigation }: any) {
         .from("merchants")
         .select("id")
         .eq("owner_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!merchant) throw new Error("No merchant linked to this account");
 
-      await supabase.from("merchant_rules").upsert({
+      const rulePayload = {
         merchant_id: merchant.id,
         max_discount_pct: rule.max_discount_pct,
         trigger_time_start: rule.trigger_time_start,
@@ -136,7 +136,19 @@ export default function MerchantRuleScreen({ navigation }: any) {
         trigger_weather: rule.trigger_weather,
         trigger_payone_threshold: rule.trigger_payone_threshold,
         active: rule.active,
-      });
+      };
+
+      const { data: existingRule } = await supabase
+        .from("merchant_rules")
+        .select("id")
+        .eq("merchant_id", merchant.id)
+        .maybeSingle();
+
+      const { error: saveError } = existingRule
+        ? await supabase.from("merchant_rules").update(rulePayload).eq("id", existingRule.id)
+        : await supabase.from("merchant_rules").insert(rulePayload);
+
+      if (saveError) throw new Error(saveError.message);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
