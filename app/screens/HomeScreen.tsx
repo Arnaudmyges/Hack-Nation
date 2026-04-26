@@ -276,23 +276,6 @@ useEffect(() => {
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
               🎬 Simulate User's arrival
             </Text>
-            <Text style={{ color: "#fff", fontSize: 11, opacity: 0.8, marginTop: 2 }}>
-              Cold · Café Müller 83m · Payone 22%
-            </Text>
-          </TouchableOpacity>
-
-          {/* Secondary: real context */}
-          <TouchableOpacity
-            onPress={() => trigger(false)}
-            style={{
-              backgroundColor: "#F1EFE8",
-              borderRadius: 14, paddingVertical: 12,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#5F5E5A", fontWeight: "600", fontSize: 13 }}>
-              📡 Use real context (live weather)
-            </Text>
           </TouchableOpacity>
         </View>
       )}

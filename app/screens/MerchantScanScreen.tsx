@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView } from 
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { validateToken } from "../services/checkoutService";
 
-// --- COMPOSANT RÉSULTAT (Identique à précédemment) ---
 function ValidationResult({ result, onReset }: { result: any, onReset: () => void }) {
   const isValid = result?.valid;
   return (
@@ -14,7 +13,7 @@ function ValidationResult({ result, onReset }: { result: any, onReset: () => voi
       </Text>
       {result?.discount_pct && <Text>Remise : {result.discount_pct}%</Text>}
       <TouchableOpacity onPress={onReset} style={styles.button}>
-        <Text style={{ color: "#fff", fontWeight: "700" }}>Retour au menu</Text>
+        <Text style={{ color: "#fff", fontWeight: "700" }}>Back to menu</Text>
       </TouchableOpacity>
     </View>
   );
@@ -37,10 +36,8 @@ export default function MerchantScanScreen() {
     setManualToken("");
   };
 
-  // 1. Écran de Résultat
   if (result) return <ValidationResult result={result} onReset={reset} />;
 
-  // 2. Mode SCANNER QR (Axe C.1)
   if (mode === 'qr') {
     if (!permission?.granted) {
       return (
@@ -60,17 +57,16 @@ export default function MerchantScanScreen() {
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         />
         <TouchableOpacity style={styles.backButton} onPress={() => setMode('menu')}>
-          <Text style={{ color: "#fff" }}>← Annuler</Text>
+          <Text style={{ color: "#fff" }}>← Cancel</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // 3. Mode SAISIE MANUELLE
   if (mode === 'manual') {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Saisie Manuelle</Text>
+        <Text style={styles.title}>Manual entry</Text>
         <TextInput
           style={styles.input}
           placeholder="Entrez le token (ex: cw_DEMO12345)"
@@ -82,27 +78,26 @@ export default function MerchantScanScreen() {
           style={[styles.button, { backgroundColor: '#2C2C2A' }]} 
           onPress={() => processValidation(manualToken)}
         >
-          <Text style={{ color: "#fff", fontWeight: "700" }}>Valider le token</Text>
+          <Text style={{ color: "#fff", fontWeight: "700" }}>Validate token</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setMode('menu')} style={{ marginTop: 20 }}>
-          <Text style={{ color: "#888" }}>Retour</Text>
+          <Text style={{ color: "#888" }}>Back</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // 4. MENU DE SÉLECTION (Ton souhait initial)
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Terminal Marchand</Text>
-      <Text style={styles.subtitle}>Choisissez une méthode de validation</Text>
+      <Text style={styles.title}>Merchant Terminal</Text>
+      <Text style={styles.subtitle}>Choose a validation method</Text>
 
       <TouchableOpacity 
         style={[styles.menuOption, { backgroundColor: '#E65100' }]} 
         onPress={() => setMode('qr')}
       >
         <Text style={{ fontSize: 32 }}>📷</Text>
-        <Text style={styles.menuText}>Scanner un QR Code</Text>
+        <Text style={styles.menuText}>Scan a QR Code</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
@@ -110,7 +105,7 @@ export default function MerchantScanScreen() {
         onPress={() => setMode('manual')}
       >
         <Text style={{ fontSize: 32 }}>⌨️</Text>
-        <Text style={styles.menuText}>Saisir un code</Text>
+        <Text style={styles.menuText}>Enter a code</Text>
       </TouchableOpacity>
     </View>
   );

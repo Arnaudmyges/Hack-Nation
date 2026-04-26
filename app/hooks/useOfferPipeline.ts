@@ -130,7 +130,7 @@ export function useOfferPipeline() {
           trigger_time_start: "00:00",
           trigger_time_end: "23:00",
         };
-        triggeredSignals = ["démonstration forcée"];
+        triggeredSignals = ["forced demonstration"];
       }
 
       setSignals(triggeredSignals);
@@ -142,7 +142,7 @@ export function useOfferPipeline() {
       try {
         generated = await generateOfferFromOllama(signal);
       } catch (ollamaError) {
-        console.warn("Ollama KO → fallback activé", ollamaError);
+        console.warn("Ollama KO → fallback activate", ollamaError);
         generated = generateFallbackOffer(signal);
       }
 
@@ -191,7 +191,7 @@ export function useOfferPipeline() {
       try {
         await sendOfferNotification(fullOffer);
       } catch (pushError) {
-        console.warn("Push non envoyée (normal sur web):", pushError);
+        console.warn("push not send:", pushError);
       }
       }
 

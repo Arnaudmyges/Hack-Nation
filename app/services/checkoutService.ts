@@ -8,13 +8,11 @@ export interface RedemptionToken {
   status: string;
 }
 
-// ── Accepter une offre → générer un token QR ──
 export async function acceptOffer(
   offerId: string,
   discountPct: number,
   merchantName: string
 ): Promise<RedemptionToken> {
-  // Générer un token unique
   const token = generateToken();
 
   const qrData = JSON.stringify({
@@ -26,7 +24,6 @@ export async function acceptOffer(
     v: 1,
   });
 
-  // Sauvegarder dans Supabase
   const { data, error } = await supabase
     .from("redemptions")
     .insert({
@@ -38,9 +35,8 @@ export async function acceptOffer(
     .select()
     .single();
 
-  if (error) throw new Error(`Erreur création token: ${error.message}`);
+  if (error) throw new Error(`Creatio token error: ${error.message}`);
 
-  // Mettre à jour le statut de l'offre
   await supabase
     .from("offers")
     .update({ status: "accepted" })
@@ -50,7 +46,6 @@ export async function acceptOffer(
   return data as RedemptionToken;
 }
 
-// ── Valider un token (côté marchand) ──
 export async function validateToken(token: string) {
   const { data, error } = await supabase
     .from("redemptions")
@@ -69,14 +64,12 @@ export async function validateToken(token: string) {
   if (error || !data) return { valid: false, reason: "Token introuvable" };
   if (data.status === "redeemed") return { valid: false, reason: "Token déjà utilisé" };
 
-  // On récupère le nom du marchand via la table 'merchants' séparément pour éviter les erreurs de jointure complexe
   const { data: merchant } = await supabase
     .from('merchants')
     .select('name')
     .eq('id', data.offers.merchant_id)
     .maybeSingle();
 
-  // Mise à jour des statuts
   await supabase.from("redemptions").update({ status: "redeemed", redeemed_at: new Date().toISOString() }).eq("token", token);
   await supabase.from("offers").update({ status: "redeemed" }).eq("id", data.offer_id);
 
@@ -88,8 +81,6 @@ export async function validateToken(token: string) {
   };
 }
 
-// ── Générateur de token simple ──
 function generateToken(): string {
   return "cw_" + Math.random().toString(36).slice(2, 11).toUpperCase();
-  // Exemple : cw_X4K9ZM2QR
 }

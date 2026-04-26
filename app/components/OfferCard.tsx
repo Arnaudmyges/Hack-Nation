@@ -119,7 +119,7 @@ export function OfferCard({ offer, onAccept, onDecline }: OfferCardProps) {
 
       {/* Bouton refuser */}
       <TouchableOpacity onPress={onDecline} style={{ paddingVertical: 8, alignItems: "center" }}>
-        <Text style={{ fontSize: 13, color: theme.text, opacity: 0.4 }}>Non merci</Text>
+        <Text style={{ fontSize: 13, color: theme.text, opacity: 0.4 }}>No thanks</Text>
       </TouchableOpacity>
     </Animated.View>
   );
