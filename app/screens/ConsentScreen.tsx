@@ -30,7 +30,8 @@ const POINTS = [
 
 export default function ConsentScreen({ navigation }: any) {
   const handleAccept = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (user) {
       await supabase.from("profiles").upsert({
         id: user.id,

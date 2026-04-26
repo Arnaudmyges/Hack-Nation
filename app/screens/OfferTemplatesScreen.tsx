@@ -60,9 +60,11 @@ export default function OfferTemplatesScreen() {
     
     setCreating(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) throw new Error("Non authentifié");
       const { data: merchant } = await supabase
-        .from("merchants").select("id").eq("owner_id", user?.id).maybeSingle();
+        .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
 
       if (!merchant) throw new Error("Marchand non trouvé");
 
@@ -202,7 +204,7 @@ export default function OfferTemplatesScreen() {
               <Text style={{ fontWeight: "700", color: "#2C2C2A", marginBottom: 4 }}>{tmpl.name}</Text>
               <Text style={{ fontSize: 11, color: "#888" }}>Max {tmpl.max_discount_pct}% • {tmpl.trigger_time_start}-{tmpl.trigger_time_end} • Trafic &lt;{tmpl.trigger_payone_threshold}%</Text>
               <View style={{ flexDirection: "row", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-                  {tmpl.trigger_weather.map(w => (
+                  {(tmpl.trigger_weather ?? []).map(w => (
                     <View key={w} style={{ backgroundColor: "#E8F5E9", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                         <Text style={{ fontSize: 10, color: "#2E7D32", fontWeight: "600" }}>{w}</Text>
                     </View>

@@ -3,9 +3,9 @@ import {
   ActivityIndicator, StyleSheet, StatusBar,
 } from "react-native";
 import { useOfferPipeline } from "../hooks/useOfferPipeline";
-import { OfferCard } from "../components/OfferCard";
+import { OfferModal } from "../components/OfferModal";
 import { useGeofencing } from "../hooks/useGeofencing";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../services/supabaseClient";
 
 function greeting() {
@@ -20,16 +20,34 @@ export default function HomeScreen({ navigation }: any) {
   const [userName, setUserName] = useState("");
   const [cashback, setCashback] = useState(0);
 
+  // Refs keep the geofencing callback current without re-creating the interval
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const triggerRef = useRef(trigger);
+  triggerRef.current = trigger;
+
   const { startGeofencing } = useGeofencing(() => {
-    if (phase === "idle") trigger(false);
+    if (phaseRef.current === "idle") triggerRef.current(false);
   });
 
   useEffect(() => {
-    startGeofencing();
+    // Run once on mount — screens never unmount in ClientNavigator (display:none)
+    let geofenceCleanup: (() => void) | undefined;
+    startGeofencing().then((cleanup) => {
+      geofenceCleanup = cleanup;
+    });
+
     loadProfile();
+
+    // Refresh profile when app comes back to foreground (e.g. after WalletScreen)
     const unsub = navigation.addListener("focus", loadProfile);
-    return unsub;
-  }, [navigation]);
+
+    return () => {
+      unsub();
+      geofenceCleanup?.();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadProfile() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -209,11 +227,6 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* ── Offer Card ── */}
-        {phase === "ready" && offer && (
-          <OfferCard offer={offer} onAccept={handleAccept} onDecline={handleDecline} />
-        )}
-
         {/* ── Idle: demo buttons ── */}
         {phase === "idle" && (
           <View style={styles.idleSection}>
@@ -235,6 +248,14 @@ export default function HomeScreen({ navigation }: any) {
 
         <View style={{ height: 16 }} />
       </ScrollView>
+
+      {/* ── Foreground offer modal (slides up over the screen) ── */}
+      <OfferModal
+        visible={phase === "ready" && offer !== null}
+        offer={offer}
+        onAccept={handleAccept}
+        onDecline={handleDecline}
+      />
     </View>
   );
 }

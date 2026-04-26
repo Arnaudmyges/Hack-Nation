@@ -34,7 +34,8 @@ export default function WalletScreen({ route, navigation }: any) {
   }, [redemption]);
 
   async function refreshBalance() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
     const { data } = await supabase
       .from("profiles")
@@ -65,7 +66,8 @@ export default function WalletScreen({ route, navigation }: any) {
     if (!redemption?.id || balance <= 0 || cashbackUsed) return;
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
       if (!user) return;
       const newBal = await useCashback(user.id, redemption.id, balance);
       setBalance(newBal);
@@ -82,7 +84,8 @@ export default function WalletScreen({ route, navigation }: any) {
     if (!redemption?.id) return;
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
       if (!user) return;
       const newBal = await creditCashback(user.id, redemption.id, offer.discount_pct);
       setBalance(newBal);

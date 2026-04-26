@@ -104,17 +104,29 @@ export async function fetchRealContext(): Promise<ContextState> {
 export async function fetchDemoContext(): Promise<ContextState> {
   const lat = CITY_CONFIG.lat;
   const lng = CITY_CONFIG.lng;
+
+  // Demo is fully deterministic — only one fast Supabase call, no external HTTP
   const merchants = await fetchNearbyMerchants(lat, lng);
-  const nearbyEvents = await fetchNearbyEvents(lat, lng);
 
   return {
     lat,
     lng,
-    weather: { temp: 9, condition: "cold", description: "Couvert et froid" },
+    weather: { temp: 9, condition: "cold", description: "Overcast and cold" },
     hour: 14,
     payoneSignal: 22,
     nearbyMerchants: merchants,
-    nearbyEvents,
+    nearbyEvents: [
+      {
+        id: "demo-e1",
+        name: "Stuttgart Spring Festival",
+        category: "festival",
+        lat: lat + 0.01,
+        lng: lng + 0.01,
+        starts_at: new Date().toISOString(),
+        ends_at: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+        expected_attendance: 500,
+      },
+    ],
   };
 }
 

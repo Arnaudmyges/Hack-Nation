@@ -19,7 +19,8 @@ export default function AddProductScreen({ navigation }: any) {
     setSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       console.log("2. User ID récupéré:", user?.id);
 
       if (!user) throw new Error("Not authenticated");

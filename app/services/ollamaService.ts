@@ -65,30 +65,39 @@ function extractJSON(text: string) {
 export async function generateOfferFromOllama(
   signal: IntentSignal
 ): Promise<GeneratedOffer> {
-  const res = await fetch("http://localhost:11434/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "phi3:mini",
-      system: SYSTEM_PROMPT,
-      prompt: buildPrompt(signal),
-      stream: false,
-      format: "json",
-      options: { temperature: 0.7, num_predict: 200 },
-    }),
-  });
+  // 20-second hard cap — beyond this, the fallback offer is used instead
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+  try {
+    const res = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "phi3:mini",
+        system: SYSTEM_PROMPT,
+        prompt: buildPrompt(signal),
+        stream: false,
+        format: "json",
+        options: { temperature: 0.7, num_predict: 200 },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-  const data = await res.json();
-  
-  const parsed = extractJSON(data.response) as GeneratedOffer;
-  if (!parsed.headline || typeof parsed.discount_pct !== "number") {
-    throw new Error("JSON incomplete from Phi-3");
+    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+
+    const data = await res.json();
+    const parsed = extractJSON(data.response) as GeneratedOffer;
+    if (!parsed.headline || typeof parsed.discount_pct !== "number") {
+      throw new Error("JSON incomplete from Phi-3");
+    }
+    parsed.discount_pct = Math.min(parsed.discount_pct, signal.max_discount_pct);
+    return parsed;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
-  
-  parsed.discount_pct = Math.min(parsed.discount_pct, signal.max_discount_pct);
-  return parsed;
 }
 
 export function generateFallbackOffer(signal: IntentSignal): GeneratedOffer {
@@ -171,18 +180,29 @@ Rules:
 export async function extractRuleFromGoalPrompt(
   goalPrompt: string
 ): Promise<Partial<MerchantRule>> {
-  const res = await fetch(OLLAMA_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
-      system: RULE_SYSTEM_PROMPT,
-      prompt: `Extract a merchant discount rule from this goal. You MUST include all five fields (max_discount_pct, trigger_time_start, trigger_time_end, trigger_weather, trigger_payone_threshold): "${goalPrompt}"`,
-      stream: false,
-      format: "json",
-      options: { temperature: 0.2, num_predict: 150 },
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000000);
+
+  let res: Response;
+  try {
+    res = await fetch(OLLAMA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL,
+        system: RULE_SYSTEM_PROMPT,
+        prompt: `Extract a merchant discount rule from this goal. You MUST include all five fields (max_discount_pct, trigger_time_start, trigger_time_end, trigger_weather, trigger_payone_threshold): "${goalPrompt}"`,
+        stream: false,
+        format: "json",
+        options: { temperature: 0.2, num_predict: 150 },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
 
   if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
 

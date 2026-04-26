@@ -48,50 +48,65 @@ export default function MerchantRuleScreen({ navigation }: any) {
   }, []);
 
   async function loadRule() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: merchant } = await supabase
-      .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
-    if (!merchant) return;
-    const { data } = await supabase
-      .from("merchant_rules").select("*")
-      .eq("merchant_id", merchant.id).eq("active", true).maybeSingle();
-    if (data) setRule({ ...DEFAULT_RULE, ...data });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { data: merchant } = await supabase
+        .from("merchants").select("id").eq("owner_id", session.user.id).maybeSingle();
+      if (!merchant) return;
+      // No active filter — load whatever rule exists for this merchant
+      const { data } = await supabase
+        .from("merchant_rules").select("*")
+        .eq("merchant_id", merchant.id).maybeSingle();
+      if (data) setRule({ ...DEFAULT_RULE, ...data });
+    } catch (e) {
+      console.warn("loadRule failed:", e);
+    }
   }
 
   async function handleSave() {
     setSaving(true);
+    // Hard 10-second cap — Supabase DB queries have no built-in timeout
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Délai dépassé (10s) — vérifiez votre connexion Supabase")), 10000)
+    );
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { data: merchant } = await supabase
-        .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
-      if (!merchant) throw new Error("No merchant linked to this account");
-
-      const payload = {
-        merchant_id: merchant.id,
-        max_discount_pct: Number(rule.max_discount_pct),
-        trigger_time_start: rule.trigger_time_start,
-        trigger_time_end: rule.trigger_time_end,
-        trigger_weather: rule.trigger_weather,
-        trigger_payone_threshold: Number(rule.trigger_payone_threshold),
-        active: rule.active,
-      };
-
-      const { data: existing } = await supabase
-        .from("merchant_rules").select("id").eq("merchant_id", merchant.id).maybeSingle();
-      const { error } = existing
-        ? await supabase.from("merchant_rules").update(payload).eq("id", existing.id)
-        : await supabase.from("merchant_rules").insert(payload);
-
-      if (error) throw new Error(error.message);
+      await Promise.race([performSave(), timeout]);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
+      console.error("handleSave error:", e.message);
       Alert.alert("Save failed", e.message);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function performSave() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error("Not authenticated");
+
+    const { data: merchant, error: mErr } = await supabase
+      .from("merchants").select("id").eq("owner_id", session.user.id).maybeSingle();
+    if (mErr) throw new Error(`Merchant lookup failed: ${mErr.message}`);
+    if (!merchant) throw new Error("Aucun marchand lié à ce compte (owner_id manquant)");
+
+    const payload = {
+      merchant_id: merchant.id,
+      max_discount_pct: Number(rule.max_discount_pct),
+      trigger_time_start: rule.trigger_time_start,
+      trigger_time_end: rule.trigger_time_end,
+      trigger_weather: rule.trigger_weather,
+      trigger_payone_threshold: Number(rule.trigger_payone_threshold),
+      active: rule.active,
+    };
+
+    // upsert replaces the check-then-insert pattern (single round trip)
+    const { error } = await supabase
+      .from("merchant_rules")
+      .upsert(payload, { onConflict: "merchant_id" });
+
+    if (error) throw new Error(`Save error: ${error.message}`);
   }
 
   function toggleWeather(w: string) {

@@ -31,11 +31,11 @@ export default function ProductAssociationScreen() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
 
       const { data: merchant } = await supabase
-        .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
+        .from("merchants").select("id").eq("owner_id", session.user.id).maybeSingle();
       
       if (!merchant) return;
 

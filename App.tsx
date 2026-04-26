@@ -7,15 +7,10 @@ import { ActivityIndicator, View } from "react-native";
 import { supabase } from "./app/services/supabaseClient";
 import { setupPushNotifications } from "./app/services/pushService";
 
-// Auth & Consent
 import LoginScreen from "./app/screens/auth/LoginScreen";
 import ConsentScreen from "./app/screens/ConsentScreen";
-
-// Client navigator (tabs: Home | Wallet | Profile)
 import ClientNavigator from "./app/screens/ClientNavigator";
 import WalletScreen from "./app/screens/WalletScreen";
-
-// Merchant screens
 import MerchantDashboard from "./app/screens/MerchantDashboard";
 import MerchantScanScreen from "./app/screens/MerchantScanScreen";
 import MerchantRuleScreen from "./app/screens/MerchantRuleScreen";
@@ -41,22 +36,32 @@ export default function App() {
   const [userRole, setUserRole] = useState<"customer" | "merchant">("customer");
 
   useEffect(() => {
-    setupPushNotifications();
+    // Push setup is best-effort — never block app startup on it
+    setupPushNotifications().catch(() => {});
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      if (s?.user) {
-        loadProfile(s.user.id).finally(() => setLoading(false));
-      } else {
+    const init = async () => {
+      try {
+        const { data: { session: s } } = await supabase.auth.getSession();
+        setSession(s);
+        if (s?.user) {
+          await loadProfile(s.user.id);
+        }
+      } catch (e) {
+        // getSession failed (expired token, network, etc.) → show Login
+        console.warn("Session init failed:", e);
+      } finally {
+        // Always dismiss the loading screen, no matter what
         setLoading(false);
       }
-    });
+    };
+
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
         setSession(s);
         if (s?.user) {
-          await loadProfile(s.user.id);
+          await loadProfile(s.user.id).catch(() => {});
         } else {
           setHasConsent(false);
           setUserRole("customer");
@@ -89,15 +94,11 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={HEADER}>
-
-        {/* ── No session → Login ── */}
         {!session ? (
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         ) : !hasConsent ? (
-          /* ── Session but no consent ── */
           <Stack.Screen name="Consent" component={ConsentScreen} options={{ headerShown: false }} />
         ) : userRole === "merchant" ? (
-          /* ── Merchant screens ── */
           <>
             <Stack.Screen name="MerchantDashboard" component={MerchantDashboard} options={{ headerShown: false }} />
             <Stack.Screen name="MerchantScan" component={MerchantScanScreen} options={{ title: "Merchant Terminal" }} />
@@ -109,13 +110,11 @@ export default function App() {
             <Stack.Screen name="ProductAssociation" component={ProductAssociationScreen} options={{ title: "Link templates" }} />
           </>
         ) : (
-          /* ── Client screens ── */
           <>
             <Stack.Screen name="ClientMain" component={ClientNavigator} options={{ headerShown: false }} />
-            <Stack.Screen name="Wallet" component={WalletScreen} options={{ title: "My Offer", headerBackTitle: "Home" }} />
+            <Stack.Screen name="Wallet" component={WalletScreen} options={{ title: "My Offer" }} />
           </>
         )}
-
       </Stack.Navigator>
     </NavigationContainer>
   );

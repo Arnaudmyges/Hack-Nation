@@ -52,25 +52,49 @@ export async function acceptOffer(
 
 // ── Valider un token (côté marchand) ──
 export async function validateToken(token: string) {
-  const { data, error } = await supabase
+  // Step 1: find the redemption row
+  const { data: redemption, error: rErr } = await supabase
     .from("redemptions")
-    .select("*, offers(discount_pct, headline, merchants(name))")
+    .select("*")
     .eq("token", token)
     .maybeSingle();
 
-  if (error || !data) {
+  if (rErr || !redemption) {
+    console.warn("validateToken: redemption not found", rErr?.message);
     return { valid: false, reason: "Token introuvable" };
   }
 
-  if (data.status === "redeemed") {
+  if (redemption.status === "redeemed") {
     return { valid: false, reason: "Token déjà utilisé" };
   }
 
-  const qrParsed = JSON.parse(data.qr_data);
-  if (new Date(qrParsed.expiresAt) < new Date()) {
-    return { valid: false, reason: "Offre expirée" };
+  // Check expiry from embedded QR data (no extra DB call needed)
+  try {
+    const qrParsed = JSON.parse(redemption.qr_data);
+    if (qrParsed.expiresAt && new Date(qrParsed.expiresAt) < new Date()) {
+      return { valid: false, reason: "Offre expirée" };
+    }
+  } catch {}
+
+  // Step 2: fetch offer details (avoid nested FK join which requires specific Supabase config)
+  const { data: offer } = await supabase
+    .from("offers")
+    .select("discount_pct, headline, merchant_id")
+    .eq("id", redemption.offer_id)
+    .maybeSingle();
+
+  // Step 3: fetch merchant name
+  let merchantName: string | undefined;
+  if (offer?.merchant_id) {
+    const { data: merchant } = await supabase
+      .from("merchants")
+      .select("name")
+      .eq("id", offer.merchant_id)
+      .maybeSingle();
+    merchantName = merchant?.name;
   }
 
+  // Mark as redeemed
   await supabase
     .from("redemptions")
     .update({ status: "redeemed", redeemed_at: new Date().toISOString() })
@@ -79,18 +103,12 @@ export async function validateToken(token: string) {
   await supabase
     .from("offers")
     .update({ status: "redeemed" })
-    .eq("id", data.offer_id);
-
-  // Supabase joins return arrays for nested relations
-  const offer = Array.isArray(data.offers) ? data.offers[0] : data.offers;
-  const merchant = offer?.merchants
-    ? (Array.isArray(offer.merchants) ? offer.merchants[0] : offer.merchants)
-    : null;
+    .eq("id", redemption.offer_id);
 
   return {
     valid: true,
     discount_pct: offer?.discount_pct,
-    merchant_name: merchant?.name,
+    merchant_name: merchantName,
     headline: offer?.headline,
   };
 }

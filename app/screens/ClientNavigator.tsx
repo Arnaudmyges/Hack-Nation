@@ -19,20 +19,21 @@ export default function ClientNavigator({ navigation }: any) {
 
   return (
     <View style={styles.root}>
-      {/* Tab content */}
-      <View style={styles.content}>
-        {activeTab === "home" && (
-          <HomeScreen navigation={navigation} route={MOCK_ROUTE} />
-        )}
-        {activeTab === "wallet" && (
-          <WalletHistoryScreen navigation={navigation} route={MOCK_ROUTE} />
-        )}
-        {activeTab === "account" && (
-          <AccountScreen navigation={navigation} route={MOCK_ROUTE} />
-        )}
+      {/*
+        Screens stay mounted at all times — only hidden with display:"none".
+        This avoids re-mounting HomeScreen on every tab switch, which would
+        leak geofencing intervals and re-trigger location permission dialogs.
+      */}
+      <View style={[styles.fill, activeTab !== "home" && styles.hidden]}>
+        <HomeScreen navigation={navigation} route={MOCK_ROUTE} />
+      </View>
+      <View style={[styles.fill, activeTab !== "wallet" && styles.hidden]}>
+        <WalletHistoryScreen navigation={navigation} route={MOCK_ROUTE} />
+      </View>
+      <View style={[styles.fill, activeTab !== "account" && styles.hidden]}>
+        <AccountScreen navigation={navigation} route={MOCK_ROUTE} />
       </View>
 
-      {/* Bottom tab bar */}
       <View style={styles.tabBar}>
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -60,7 +61,8 @@ export default function ClientNavigator({ navigation }: any) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FAFAF8" },
-  content: { flex: 1 },
+  fill: { flex: 1 },
+  hidden: { display: "none" },
 
   tabBar: {
     flexDirection: "row",
@@ -90,11 +92,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: "#E65100",
   },
-  tabIcon: {
-    fontSize: 18,
-    color: "#C8C6C0",
-    marginBottom: 3,
-  },
+  tabIcon: { fontSize: 18, color: "#C8C6C0", marginBottom: 3 },
   tabIconActive: { color: "#E65100" },
   tabLabel: { fontSize: 10, fontWeight: "500", color: "#B4B2A9" },
   tabLabelActive: { color: "#E65100", fontWeight: "700" },

@@ -14,7 +14,8 @@ export default function WalletHistoryScreen({ navigation }: any) {
   }, []);
 
   async function loadData() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     const [{ data: redemptions }, { data: profile }] = await Promise.all([
