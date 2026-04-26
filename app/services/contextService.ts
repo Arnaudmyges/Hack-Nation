@@ -35,10 +35,29 @@ function classifyCondition(id: number, temp: number): WeatherData["condition"] {
 }
 
 // ─── Signal Payone simulé ────────────────────────────────────
-export function simulatePayoneSignal(hour: number): number {
-  if (hour >= 14 && hour <= 17) return 22;
-  if (hour >= 11 && hour <= 13) return 85;
-  return 55;
+// Update simulatePayoneSignal to be per-merchant with variance
+
+export function simulatePayoneSignalForMerchant(
+  merchantId: string,
+  hour: number
+): number {
+  // Each merchant has its own traffic pattern
+  const patterns: Record<string, number[]> = {
+    // Café Müller: quiet 14-17h
+    "cafe-muller": [30, 35, 45, 70, 85, 80, 65, 55, 75, 80, 85, 90, 85, 75, 22, 20, 18, 25, 45, 55, 50, 40, 35, 30],
+    // Bakery: busy morning, quiet afternoon
+    "bakery-schmidt": [10, 10, 15, 30, 60, 85, 90, 80, 65, 50, 45, 40, 35, 25, 20, 18, 15, 20, 25, 30, 25, 20, 15, 10],
+    // Wine shop: busy evening
+    "weinhandel-fischer": [5, 5, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 45, 35, 40, 55, 70, 85, 90, 80, 60, 40, 15],
+  };
+
+  const key = merchantId.toLowerCase().replace(/\s+/g, "-");
+  const pattern = patterns[key] ?? patterns["cafe-muller"];
+  const base = pattern[hour] ?? 50;
+
+  // Add ±10% random variance for realism
+  const variance = (Math.random() - 0.5) * 20;
+  return Math.max(5, Math.min(100, Math.round(base + variance)));
 }
 
 // ─── Marchands dans rayon 300m ───────────────────────────────
@@ -65,13 +84,24 @@ export async function fetchRealContext(): Promise<ContextState> {
     fetchNearbyMerchants(lat, lng),
   ]);
 
-  return {
-    lat, lng,
-    weather,
-    hour: new Date().getHours(),
-    payoneSignal: simulatePayoneSignal(new Date().getHours()),
-    nearbyMerchants: merchants,
-  };
+  const hour = new Date().getHours();
+
+return {
+  lat, lng,
+  weather,
+  hour,
+  payoneSignal: merchants.length > 0
+    ? Math.round(
+        merchants.reduce((sum, m) =>
+          sum + simulatePayoneSignalForMerchant(m.name, hour), 0
+        ) / merchants.length
+      )
+    : simulatePayoneSignalForMerchant("cafe-muller", hour),
+  nearbyMerchants: merchants.map(m => ({
+    ...m,
+    payoneSignal: simulatePayoneSignalForMerchant(m.name, hour),
+  })),
+};
 }
 
 export async function fetchDemoContext(): Promise<ContextState> {
