@@ -41,59 +41,41 @@ export default function App() {
   const [userRole, setUserRole] = useState<"customer" | "merchant">("customer");
 
   useEffect(() => {
-  // On ne lance PAS setupPushNotifications sur le web si ça fait planter
-  setupPushNotifications();
+    setupPushNotifications();
 
-  let authInitialized = false;
-
-  const init = async () => {
-    try {
-      // On récupère la session
-      const { data: { session: s } } = await supabase.auth.getSession();
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       if (s?.user) {
-        await loadProfile(s.user.id);
+        loadProfile(s.user.id).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-      setLoading(false);
-    }
-  };
+    });
 
-  init();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, s) => {
+        setSession(s);
+        if (s?.user) {
+          await loadProfile(s.user.id);
+        } else {
+          setHasConsent(false);
+          setUserRole("customer");
+        }
+      },
+    );
 
-  // Écouteur de secours
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-    setSession(s);
-    if (!s) setLoading(false); // Si déconnecté, on débloque direct
-  });
-
-  return () => subscription.unsubscribe();
-}, []);
+    return () => subscription.unsubscribe();
+  }, []);
 
   async function loadProfile(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("display_name, role")
-        .eq("id", userId)
-        .single();
+    const { data } = await supabase
+      .from("profiles")
+      .select("display_name, role")
+      .eq("id", userId)
+      .single();
 
-      if (error || !data) {
-        // Cas où l'utilisateur est dans Auth mais pas encore dans Profiles
-        setHasConsent(false);
-        setUserRole("customer");
-      } else {
-        setHasConsent(!!data.display_name);
-        setUserRole((data.role as "customer" | "merchant") || "customer");
-      }
-    } catch (e) {
-      console.error("Erreur profile load:", e);
-    } finally {
-      setLoading(false); // S'arrête quoi qu'il arrive
-    }
+    setHasConsent(!!data?.display_name);
+    setUserRole((data?.role as "customer" | "merchant") ?? "customer");
   }
 
   if (loading) {

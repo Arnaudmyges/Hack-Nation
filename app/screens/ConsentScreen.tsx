@@ -29,35 +29,16 @@ const POINTS = [
 ];
 
 export default function ConsentScreen({ navigation }: any) {
-  
   const handleAccept = async () => {
-    // 1. Récupérer la session et l'utilisateur
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-
-    if (!user) return;
-
-    // 2. Récupérer les infos qu'on a mises dans le signUp (App.tsx / LoginScreen.tsx)
-    // On utilise les metadata pour éviter d'avoir des variables "rouges"
-    const signUpName = user.user_metadata?.display_name || "New User";
-    const signUpRole = user.user_metadata?.role || "customer";
-
-    // 3. Mettre à jour le profil SQL
-    const { error } = await supabase
-      .from('profiles')
-      .update({ 
-        display_name: signUpName, 
-        role: signUpRole 
-      })
-      .eq('id', user.id);
-        
-    if (!error) {
-      // Pas besoin de navigation.navigate("ClientMain") !
-      // App.tsx va voir le changement de profil et switcher l'écran tout seul.
-      console.log("Profil mis à jour avec succès:", signUpRole);
-    } else {
-      console.error("Erreur update profil:", error.message);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        role: "customer",
+        display_name: user.email?.split("@")[0] ?? "User",
+      });
     }
+    navigation.replace("ClientMain");
   };
 
   return (
