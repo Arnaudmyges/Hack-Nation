@@ -3,7 +3,8 @@ import {
   TouchableOpacity, TextInput,
   Alert, ActivityIndicator,
 } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../services/supabaseClient";
 
 interface Template {
@@ -24,31 +25,52 @@ interface Product {
   in_stock: boolean;
 }
 
+interface ActiveRule {
+  max_discount_pct: number;
+  trigger_time_start: string;
+  trigger_time_end: string;
+  trigger_weather: string[];
+  trigger_payone_threshold: number;
+}
+
 export default function OfferTemplatesScreen() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [currentRule, setCurrentRule] = useState<ActiveRule | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
 
-  // ── Fetch templates + products ──────────────────────────────
   const fetchData = async () => {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+
       const [{ data: tmplData }, { data: prodData }] = await Promise.all([
         supabase.from("offer_templates").select("*").order("created_at", { ascending: false }),
         supabase.from("products").select("*").eq("in_stock", true),
       ]);
       setTemplates(tmplData ?? []);
       setProducts(prodData ?? []);
+
+      if (user) {
+        const { data: merchant } = await supabase
+          .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
+        if (merchant) {
+          const { data: rule } = await supabase
+            .from("merchant_rules").select("*")
+            .eq("merchant_id", merchant.id).eq("active", true).maybeSingle();
+          setCurrentRule(rule ?? null);
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useFocusEffect(useCallback(() => { fetchData(); }, []));
 
   // ── Create a template from current merchant_rules ───────────
   const createTemplate = async () => {
@@ -62,18 +84,14 @@ export default function OfferTemplatesScreen() {
       if (!user) throw new Error("Not authenticated");
 
       const { data: merchant } = await supabase
-        .from("merchants").select("id").eq("owner_id", user.id).single();
+        .from("merchants").select("id").eq("owner_id", user.id).maybeSingle();
       if (!merchant) throw new Error("No merchant linked to this account");
 
-      // Load current active rule as the template base
       const { data: rule } = await supabase
-        .from("merchant_rules")
-        .select("*")
-        .eq("merchant_id", merchant.id)
-        .eq("active", true)
-        .single();
+        .from("merchant_rules").select("*")
+        .eq("merchant_id", merchant.id).eq("active", true).maybeSingle();
 
-      await supabase.from("offer_templates").insert({
+      const { error: insertError } = await supabase.from("offer_templates").insert({
         merchant_id: merchant.id,
         name: newTemplateName.trim(),
         max_discount_pct: rule?.max_discount_pct ?? 20,
@@ -84,9 +102,11 @@ export default function OfferTemplatesScreen() {
         product_id: selectedProductId ?? null,
       });
 
+      if (insertError) throw new Error(insertError.message);
+
       setNewTemplateName("");
       setSelectedProductId(null);
-      fetchData();
+      await fetchData();
       Alert.alert("Saved", "Template created from your current rule.");
     } catch (e: any) {
       Alert.alert("Error", e.message);
@@ -95,34 +115,33 @@ export default function OfferTemplatesScreen() {
     }
   };
 
-  // ── Apply a template → creates a new merchant_rule ──────────
-  // THIS is where applyTemplate is called — from the "Apply" button on each card
+  // ── Apply a template → updates the active merchant_rule ─────
   const applyTemplate = async (templateId: string, productId: string) => {
     setApplyingId(templateId);
     try {
       const { data: tmpl } = await supabase
-        .from("offer_templates").select("*").eq("id", templateId).single();
-
+        .from("offer_templates").select("*").eq("id", templateId).maybeSingle();
       if (!tmpl) throw new Error("Template not found");
 
-      // Deactivate existing rules first
-      await supabase
+      const { error: deactivateError } = await supabase
         .from("merchant_rules")
         .update({ active: false })
         .eq("merchant_id", tmpl.merchant_id);
+      if (deactivateError) throw new Error(deactivateError.message);
 
-      // Insert new rule from template
-      await supabase.from("merchant_rules").insert({
+      const { error: insertError } = await supabase.from("merchant_rules").insert({
         merchant_id: tmpl.merchant_id,
         max_discount_pct: tmpl.max_discount_pct,
         trigger_weather: tmpl.trigger_weather,
         trigger_time_start: tmpl.trigger_time_start,
         trigger_time_end: tmpl.trigger_time_end,
         trigger_payone_threshold: tmpl.trigger_payone_threshold,
-        product_id: productId,
+        product_id: productId || null,
         active: true,
       });
+      if (insertError) throw new Error(insertError.message);
 
+      await fetchData();
       Alert.alert("Applied", `Template "${tmpl.name}" is now active.`);
     } catch (e: any) {
       Alert.alert("Error", e.message);
@@ -138,7 +157,11 @@ export default function OfferTemplatesScreen() {
       {
         text: "Delete", style: "destructive",
         onPress: async () => {
-          await supabase.from("offer_templates").delete().eq("id", id);
+          const { error } = await supabase.from("offer_templates").delete().eq("id", id);
+          if (error) {
+            Alert.alert("Error", error.message);
+            return;
+          }
           fetchData();
         },
       },
@@ -164,9 +187,47 @@ export default function OfferTemplatesScreen() {
         padding: 16, marginBottom: 20,
         borderWidth: 1, borderColor: "#F1EFE8",
       }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: "#2C2C2A", marginBottom: 12 }}>
+        <Text style={{ fontSize: 14, fontWeight: "700", color: "#2C2C2A", marginBottom: 8 }}>
           💾 Save current rule as template
         </Text>
+
+        {/* Current rule preview */}
+        {currentRule ? (
+          <View style={{
+            backgroundColor: "#F1EFE8", borderRadius: 8,
+            padding: 10, marginBottom: 12,
+          }}>
+            <Text style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Current active rule</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              <View style={{ backgroundColor: "#FFF3E0", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 11, color: "#E65100", fontWeight: "600" }}>
+                  max {currentRule.max_discount_pct}%
+                </Text>
+              </View>
+              <View style={{ backgroundColor: "#E3F2FD", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 11, color: "#1565C0", fontWeight: "600" }}>
+                  {currentRule.trigger_time_start} – {currentRule.trigger_time_end}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: "#E8F5E9", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>
+                  traffic &lt;{currentRule.trigger_payone_threshold}%
+                </Text>
+              </View>
+              {currentRule.trigger_weather.map(w => (
+                <View key={w} style={{ backgroundColor: "#E8F5E9", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>{w}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <View style={{ backgroundColor: "#FFF3E0", borderRadius: 8, padding: 10, marginBottom: 12 }}>
+            <Text style={{ fontSize: 11, color: "#E65100" }}>
+              No active rule found — save a rule first in the Rules screen.
+            </Text>
+          </View>
+        )}
 
         <TextInput
           value={newTemplateName}
@@ -180,7 +241,6 @@ export default function OfferTemplatesScreen() {
           }}
         />
 
-        {/* Optional: link to a product */}
         <Text style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>
           Link to a product (optional)
         </Text>
@@ -223,9 +283,9 @@ export default function OfferTemplatesScreen() {
 
         <TouchableOpacity
           onPress={createTemplate}
-          disabled={creating}
+          disabled={creating || !currentRule}
           style={{
-            backgroundColor: creating ? "#B4B2A9" : "#E65100",
+            backgroundColor: creating || !currentRule ? "#B4B2A9" : "#E65100",
             borderRadius: 10, paddingVertical: 12, alignItems: "center",
           }}
         >
@@ -258,12 +318,10 @@ export default function OfferTemplatesScreen() {
             padding: 14, marginBottom: 10,
             borderWidth: 1, borderColor: "#F1EFE8",
           }}>
-            {/* Template name */}
             <Text style={{ fontSize: 14, fontWeight: "700", color: "#2C2C2A", marginBottom: 6 }}>
               {tmpl.name}
             </Text>
 
-            {/* Template params */}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
               <View style={{ backgroundColor: "#FFF3E0", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
                 <Text style={{ fontSize: 11, color: "#E65100", fontWeight: "600" }}>
@@ -275,6 +333,11 @@ export default function OfferTemplatesScreen() {
                   {tmpl.trigger_time_start} – {tmpl.trigger_time_end}
                 </Text>
               </View>
+              <View style={{ backgroundColor: "#E8F5E9", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>
+                  traffic &lt;{tmpl.trigger_payone_threshold}%
+                </Text>
+              </View>
               {tmpl.trigger_weather.map(w => (
                 <View key={w} style={{ backgroundColor: "#E8F5E9", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
                   <Text style={{ fontSize: 11, color: "#2E7D32", fontWeight: "600" }}>{w}</Text>
@@ -282,14 +345,9 @@ export default function OfferTemplatesScreen() {
               ))}
             </View>
 
-            {/* Apply + Delete */}
             <View style={{ flexDirection: "row", gap: 8 }}>
-              {/* Apply to first available product if none linked */}
               <TouchableOpacity
-                onPress={() => applyTemplate(
-                  tmpl.id,
-                  tmpl.product_id ?? products[0]?.id ?? ""
-                )}
+                onPress={() => applyTemplate(tmpl.id, tmpl.product_id ?? products[0]?.id ?? "")}
                 disabled={applyingId === tmpl.id}
                 style={{
                   flex: 1, backgroundColor: applyingId === tmpl.id ? "#B4B2A9" : "#2E7D32",
