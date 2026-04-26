@@ -11,25 +11,54 @@ export default function AddProductScreen({ navigation }: any) {
   const [saving, setSaving] = useState(false);
 
   const handleAdd = async () => {
-    if (!name.trim() || !price) return;
+    console.log("1. Bouton cliqué");
+    if (!name.trim() || !price) {
+      console.log("Erreur: champs vides");
+      return;
+    }
     setSaving(true);
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { data: merchant } = await supabase
-        .from("merchants").select("id").eq("owner_id", user.id).single();
-      if (!merchant) throw new Error("No merchant linked");
+      console.log("2. User ID récupéré:", user?.id);
 
-      const { error } = await supabase.from("products").insert({
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: merchant, error: mError } = await supabase
+        .from("merchants")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+
+      if (mError) {
+        console.error("Erreur SQL détaillée:", mError);
+        Alert.alert("Erreur SQL", mError.message);
+        setSaving(false);
+        return;
+      }
+
+      if (!merchant) {
+        console.log("Aucun marchand trouvé pour owner_id:", user.id);
+        Alert.alert("Profil Manquant", "Tu n'es pas encore enregistré comme marchand dans la table 'merchants'.");
+        setSaving(false);
+        return;
+      }
+
+      console.log("4. Tentative d'insertion du produit...");
+      const { error: pError } = await supabase.from("products").insert({
         merchant_id: merchant.id,
         name: name.trim(),
         price: parseFloat(price),
         category,
         in_stock: true,
       });
-      if (error) throw error;
+
+      if (pError) throw pError;
+
+      console.log("5. Succès !");
       navigation.goBack();
     } catch (e: any) {
+      console.error("6. CATCH ERROR:", e.message);
       Alert.alert("Error", e.message);
     } finally {
       setSaving(false);
