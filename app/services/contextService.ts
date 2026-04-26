@@ -110,7 +110,7 @@ export async function fetchDemoContext(): Promise<ContextState> {
   return {
     lat,
     lng,
-    weather: { temp: 9, condition: "cold", description: "Couvert et froid" },
+    weather: { temp: 9, condition: "cold", description: "Cold and overcast" },
     hour: 14,
     payoneSignal: 22,
     nearbyMerchants: merchants,

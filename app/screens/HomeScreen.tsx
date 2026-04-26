@@ -226,10 +226,6 @@ export default function HomeScreen({ navigation }: any) {
               <Text style={styles.demoBtnPrimaryText}>🎬 Simulate Mia's arrival</Text>
               <Text style={styles.demoBtnPrimaryHint}>Cold · Café Müller 83m · Payone 22%</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => trigger(false)} style={styles.demoBtnSecondary}>
-              <Text style={styles.demoBtnSecondaryText}>📡 Use real context (live weather)</Text>
-            </TouchableOpacity>
           </View>
         )}
 
