@@ -1,4 +1,4 @@
-import { supabase } from "../services/supabaseClient";
+import { supabase } from "../../services/supabaseClient";
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert } from "react-native";
 
@@ -9,16 +9,22 @@ export default function LoginScreen({ navigation }: any) {
   const [isSignUp, setIsSignUp] = useState(false);
 
   const handleAuth = async () => {
+    if (loading) return;
     setLoading(true);
+    
     try {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        Alert.alert("Check your email to confirm your account");
+        if (error) {
+          if (error.status === 429) {
+            Alert.alert("Slow down", "Too many attempts. Please wait a bit.");
+          } else {
+            throw error;
+          }
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigation.replace("Home");
       }
     } catch (e: any) {
       Alert.alert("Error", e.message);
