@@ -126,21 +126,22 @@ export default function MerchantRuleScreen({ navigation }: any) {
         .eq("owner_id", user.id)
         .single();
 
-      if (!merchant) throw new Error("No merchant linked to this account");
+      if (!merchant) throw new Error("No merchant linked");
 
       await supabase.from("merchant_rules").upsert({
         merchant_id: merchant.id,
-        max_discount_pct: rule.max_discount_pct,
+        max_discount_pct: Number(rule.max_discount_pct), 
         trigger_time_start: rule.trigger_time_start,
         trigger_time_end: rule.trigger_time_end,
-        trigger_weather: rule.trigger_weather,
-        trigger_payone_threshold: rule.trigger_payone_threshold,
+        trigger_weather: rule.trigger_weather, 
+        trigger_payone_threshold: Number(rule.trigger_payone_threshold),
         active: rule.active,
-      });
+      }, { onConflict: 'merchant_id' });
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: any) {
+      console.error("Détail erreur:", e);
       Alert.alert("Error saving rule", e.message);
     } finally {
       setSaving(false);
