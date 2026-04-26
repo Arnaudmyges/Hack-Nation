@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
 import { supabase } from "../services/supabaseClient";
 import { ScrollView, TouchableOpacity, Text, View, Switch } from "react-native";
+import { useState, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function ProductsScreen({ navigation }: any) {
   const [products, setProducts] = useState<any[]>([]);
@@ -23,7 +24,11 @@ export default function ProductsScreen({ navigation }: any) {
     fetchProducts();
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProducts(); // (Mets le nom exact de ta fonction ici)
+    }, [])
+  );
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "#FAFAF8" }}

@@ -2,7 +2,7 @@ import {
   View, Text, ScrollView,
   TouchableOpacity, TextInput,
   Alert, ActivityIndicator,
-  StyleSheet
+  StyleSheet,Platform
 } from "react-native";
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
@@ -88,18 +88,48 @@ export default function OfferTemplatesScreen() {
     }
   };
 
-  const deleteTemplate = async (id: string) => {
-    Alert.alert("Supprimer", "Confirmer la suppression ?", [
-      { text: "Annuler", style: "cancel" },
-      { text: "Supprimer", style: "destructive", onPress: async () => {
-          const { error } = await supabase.from("offer_templates").delete().eq("id", id);
-          if (error) {
-              Alert.alert("Erreur", error.message);
-          } else {
-              fetchData();
-          }
-      }},
-    ]);
+  const performDelete = async (id: string) => {
+    try {
+      const { error } = await supabase.from("offer_templates").delete().eq("id", id);
+      
+      if (error) {
+        throw error;
+      }
+
+      // Mise à jour de l'affichage immédiatement
+      setTemplates(prevTemplates => prevTemplates.filter(tmpl => tmpl.id !== id));
+      
+    } catch (e: any) {
+      console.error("Erreur lors de la suppression:", e);
+      if (Platform.OS !== "web") {
+        Alert.alert("Erreur de suppression", e.message);
+      } else {
+        alert("Erreur de suppression : " + e.message);
+      }
+    }
+  };
+
+  // La fonction déclenchée par le bouton
+  const deleteTemplate = (id: string) => {
+    console.log("Demande de suppression pour l'ID :", id);
+
+    if (Platform.OS === "web") {
+      // Sur le web, on utilise la boîte de dialogue standard du navigateur
+      const confirmDelete = window.confirm("Confirmer la suppression ?");
+      if (confirmDelete) {
+        performDelete(id);
+      }
+    } else {
+      // Sur mobile, on utilise l'alerte native de React Native
+      Alert.alert("Supprimer", "Confirmer la suppression ?", [
+        { text: "Annuler", style: "cancel" },
+        { 
+          text: "Supprimer", 
+          style: "destructive", 
+          onPress: () => performDelete(id)
+        },
+      ]);
+    }
   };
 
   if (loading) {

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ActivityIndicator, View } from "react-native";
+import ProductAssociationScreen from './app/screens/ProductAssociationScreen';
 
 // --- IMPORT SUPABASE ---
 import { supabase } from "./app/services/supabaseClient";
@@ -149,6 +150,11 @@ export default function App() {
               name="AddProduct" 
               component={AddProductScreen} 
               options={{ title: "Add product" }} 
+            />
+            <Stack.Screen 
+              name="ProductAssociation" 
+              component={ProductAssociationScreen} 
+              options={{ title: 'Associer les templates' }} // Titre optionnel pour le header
             />
           </>
         )}
