@@ -16,20 +16,26 @@ export default function LoginScreen() {
 
   const handleAuth = async () => {
     if (loading) return;
-    if (isSignUp && !displayName.trim()) {
-      return Alert.alert("Required", "Please enter your name");
-    }
     setLoading(true);
+
     try {
       if (isSignUp) {
-        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            // Ces données seront lues par le trigger SQL ci-dessus
+            data: {
+              display_name: displayName,
+              role: role,
+            },
+          },
+        });
+
         if (authError) throw authError;
+
         if (authData.user) {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .insert([{ id: authData.user.id, display_name: displayName, role, cashback_balance: 0 }]);
-          if (profileError) console.error("Profile creation error:", profileError.message);
-          Alert.alert("Account created", "You can now sign in.");
+          Alert.alert("Succès", "Compte créé ! Vérifiez vos emails ou connectez-vous.");
           setIsSignUp(false);
         }
       } else {
@@ -37,7 +43,7 @@ export default function LoginScreen() {
         if (error) throw error;
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Erreur", e.message);
     } finally {
       setLoading(false);
     }
