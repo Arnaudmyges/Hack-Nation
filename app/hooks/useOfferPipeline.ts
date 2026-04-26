@@ -1,0 +1,161 @@
+import { useState } from "react";
+import { supabase } from "../services/supabaseClient";
+import {
+  fetchDemoContext,
+  fetchRealContext,
+  evaluateTrigger,
+  ContextState,
+} from "../services/contextService";
+import {
+  buildIntentSignal,
+  generateOfferFromOllama,
+  generateFallbackOffer,
+  GeneratedOffer,
+} from "../services/ollamaService";
+
+export type PipelinePhase =
+  | "idle"
+  | "sensing"
+  | "generating"
+  | "ready"
+  | "error";
+
+export interface FullOffer extends GeneratedOffer {
+  id?: string;
+  merchant_name: string;
+  distance_meters: number;
+  merchant_id: string;
+}
+
+export function useOfferPipeline() {
+  const [phase, setPhase] = useState<PipelinePhase>("idle");
+  const [offer, setOffer] = useState<FullOffer | null>(null);
+  const [contextState, setContextState] = useState<ContextState | null>(null);
+  const [signals, setSignals] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const trigger = async (useDemo = true) => {
+    setPhase("sensing");
+    setOffer(null);
+    setError(null);
+
+    try {
+      // ── 1. Récupérer le contexte ──────────────────────────
+      const ctx = useDemo
+        ? await fetchDemoContext()
+        : await fetchRealContext();
+      setContextState(ctx);
+
+      // ── 2. Trouver un marchand déclenché ──────────────────
+      if (!ctx.nearbyMerchants.length) {
+        setError("Aucun marchand partenaire dans ce rayon.");
+        setPhase("error");
+        return;
+      }
+
+      let triggeredMerchant = null;
+      let triggeredRule = null;
+      let triggeredSignals: string[] = [];
+
+      for (const merchant of ctx.nearbyMerchants) {
+        for (const rule of merchant.merchant_rules ?? []) {
+          const result = evaluateTrigger(ctx, rule);
+          if (result.triggered) {
+            triggeredMerchant = merchant;
+            triggeredRule = rule;
+            triggeredSignals = result.signals;
+            break;
+          }
+        }
+        if (triggeredMerchant) break;
+      }
+
+      // Fallback : prendre le premier marchand même sans déclenchement
+      if (!triggeredMerchant) {
+        triggeredMerchant = ctx.nearbyMerchants[0];
+        triggeredRule = triggeredMerchant.merchant_rules?.[0] ?? {
+          max_discount_pct: 15,
+          trigger_weather: [],
+          trigger_payone_threshold: 35,
+          trigger_time_start: "00:00",
+          trigger_time_end: "23:00",
+        };
+        triggeredSignals = ["démonstration forcée"];
+      }
+
+      setSignals(triggeredSignals);
+      setPhase("generating");
+
+      // ── 3. Construire le signal d'intention ───────────────
+      const signal = buildIntentSignal(ctx, triggeredMerchant, triggeredRule);
+
+      // ── 4. Générer l'offre via Ollama ─────────────────────
+      let generated: GeneratedOffer;
+      try {
+        generated = await generateOfferFromOllama(signal);
+      } catch (ollamaError) {
+        console.warn("Ollama KO → fallback activé", ollamaError);
+        generated = generateFallbackOffer(signal);
+      }
+
+      // ── 5. Calculer la distance ───────────────────────────
+      const dlat = (triggeredMerchant.lat - ctx.lat) * 111000;
+      const dlng =
+        (triggeredMerchant.lng - ctx.lng) *
+        111000 *
+        Math.cos((ctx.lat * Math.PI) / 180);
+      const distance = Math.round(Math.sqrt(dlat * dlat + dlng * dlng));
+
+      // ── 6. Sauvegarder dans Supabase ──────────────────────
+      const { data: savedOffer } = await supabase
+        .from("offers")
+        .insert({
+          merchant_id: triggeredMerchant.id,
+          headline: generated.headline,
+          sub_text: generated.sub_text,
+          discount_pct: generated.discount_pct,
+          visual_mood: generated.visual_mood,
+          cta_label: generated.cta_label,
+          expiry_minutes: generated.expiry_minutes,
+          context_snapshot: {
+            weather: ctx.weather,
+            hour: ctx.hour,
+            payone_signal: ctx.payoneSignal,
+            signals: triggeredSignals,
+          },
+          expires_at: new Date(
+            Date.now() + generated.expiry_minutes * 60 * 1000
+          ).toISOString(),
+          status: "active",
+        })
+        .select()
+        .single();
+
+      // ── 7. Assembler l'offre complète ─────────────────────
+      const fullOffer: FullOffer = {
+        ...generated,
+        id: savedOffer?.id,
+        merchant_name: triggeredMerchant.name,
+        distance_meters: distance,
+        merchant_id: triggeredMerchant.id,
+      };
+
+      setOffer(fullOffer);
+      setPhase("ready");
+    } catch (err: any) {
+      console.error("Pipeline error:", err);
+      setError(err.message ?? "Erreur inconnue");
+      setPhase("error");
+    }
+  };
+
+  const reset = () => {
+    setPhase("idle");
+    setOffer(null);
+    setContextState(null);
+    setSignals([]);
+    setError(null);
+  };
+
+  return { phase, offer, contextState, signals, error, trigger, reset };
+}
