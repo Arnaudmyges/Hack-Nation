@@ -12,6 +12,7 @@ import {
   generateFallbackOffer,
   GeneratedOffer,
 } from "../services/ollamaService";
+import { sendOfferNotification } from "../services/pushService";
 
 export type PipelinePhase =
   | "idle"
@@ -35,12 +36,13 @@ export function useOfferPipeline() {
   const [error, setError] = useState<string | null>(null);
 
   const trigger = async (useDemo = true) => {
+    // Reset état
     setPhase("sensing");
     setOffer(null);
     setError(null);
 
     try {
-      // ── 1. Récupérer le contexte ──────────────────────────
+      // ── 1. Contexte ───────────────────────────────────────
       const ctx = useDemo
         ? await fetchDemoContext()
         : await fetchRealContext();
@@ -70,7 +72,7 @@ export function useOfferPipeline() {
         if (triggeredMerchant) break;
       }
 
-      // Fallback : prendre le premier marchand même sans déclenchement
+      // Fallback : prendre le premier marchand si rien déclenché
       if (!triggeredMerchant) {
         triggeredMerchant = ctx.nearbyMerchants[0];
         triggeredRule = triggeredMerchant.merchant_rules?.[0] ?? {
@@ -140,8 +142,18 @@ export function useOfferPipeline() {
         merchant_id: triggeredMerchant.id,
       };
 
+      // ── 8. Mettre à jour l'état ───────────────────────────
       setOffer(fullOffer);
       setPhase("ready");
+
+      // ── 9. Envoyer la push notification ───────────────────
+      try {
+        await sendOfferNotification(fullOffer);
+      } catch (pushError) {
+        // Normal sur Expo Web — pas bloquant
+        console.warn("Push non envoyée (normal sur web):", pushError);
+      }
+
     } catch (err: any) {
       console.error("Pipeline error:", err);
       setError(err.message ?? "Erreur inconnue");
@@ -157,5 +169,13 @@ export function useOfferPipeline() {
     setError(null);
   };
 
-  return { phase, offer, contextState, signals, error, trigger, reset };
+  return {
+    phase,
+    offer,
+    contextState,
+    signals,
+    error,
+    trigger,
+    reset,
+  };
 }
