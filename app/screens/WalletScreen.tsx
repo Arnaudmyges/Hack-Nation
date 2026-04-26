@@ -7,6 +7,8 @@ import QRCode from "react-native-qrcode-svg";
 import { acceptOffer, RedemptionToken } from "../services/checkoutService";
 import { DEMO_FAILSAFE_TOKEN } from "../services/demoFailsafe";
 import { supabase } from "../services/supabaseClient";
+// 1. Nouvel import pour le service de cashback
+import { creditCashback } from "../services/cashbackService";
 
 async function fetchCashbackBalance(): Promise<number> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -23,7 +25,7 @@ export default function WalletScreen({ route, navigation }: any) {
   const [redemption, setRedemption] = useState<RedemptionToken | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutes
+  const [timeLeft, setTimeLeft] = useState(15 * 60);
 
   useEffect(() => {
     if (!offer?.id) {
@@ -103,7 +105,6 @@ export default function WalletScreen({ route, navigation }: any) {
       style={{ flex: 1, backgroundColor: "#FAFAF8" }}
       contentContainerStyle={{ alignItems: "center", padding: 24 }}
     >
-      {/* Offer Header */}
       <View style={{
         width: "100%", padding: 16,
         backgroundColor: "#FFF3E0",
@@ -127,20 +128,31 @@ export default function WalletScreen({ route, navigation }: any) {
         </View>
       </View>
       
+      {/* 2. Insertion des nouveaux callbacks avec la logique de crédit */}
       {!isExpired && (
         <CashbackChoice 
           offer={offer} 
-          onUseCashback={() => alert("Cashback applied to your next scan!")}
-          onSkip={() => alert("You will earn cashback after this purchase!")}
+          onUseCashback={async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user && redemption) {
+              await creditCashback(user.id, redemption.id, offer.discount_pct);
+              alert("Cashback appliqué à votre prochain scan !");
+            }
+          }}
+          onSkip={async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user && redemption) {
+              await creditCashback(user.id, redemption.id, offer.discount_pct);
+              alert("Vous cumulerez du cashback après cet achat !");
+            }
+          }}
         />
       )}
       
-      {/* Instructions */}
       <Text style={{ fontSize: 14, color: "#5F5E5A", marginBottom: 16, textAlign: "center" }}>
         Show this QR code to the merchant
       </Text>
 
-      {/* QR Code Section */}
       {!isExpired ? (
         <View style={{
           padding: 20, backgroundColor: "#fff",
@@ -168,7 +180,6 @@ export default function WalletScreen({ route, navigation }: any) {
         </View>
       )}
 
-      {/* Timer Section */}
       <View style={{
         flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8,
       }}>
@@ -187,7 +198,6 @@ export default function WalletScreen({ route, navigation }: any) {
         Token ID: {redemption?.token}
       </Text>
 
-      {/* Navigation Button */}
       <TouchableOpacity
         onPress={() => navigation.navigate("Home")}
         style={{
@@ -204,6 +214,7 @@ export default function WalletScreen({ route, navigation }: any) {
   );
 }
 
+// Le composant CashbackChoice reste identique mais recevra les nouveaux onUseCashback / onSkip
 export function CashbackChoice({ offer, onUseCashback, onSkip }: any) {
   const [balance, setBalance] = useState(0);
 
