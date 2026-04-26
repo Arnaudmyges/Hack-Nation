@@ -24,34 +24,42 @@ import MerchantDashboard from "./app/screens/MerchantDashboard";
 import MerchantScanScreen from "./app/screens/MerchantScanScreen";
 import MerchantRuleScreen from "./app/screens/MerchantRuleScreen";
 import OfferTemplatesScreen from "./app/screens/OfferTemplatesScreen";
+import GoalPromptScreen from "./app/screens/GoalPromptScreen";
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [hasConsent, setHasConsent] = useState(false); // 👈 ajouter
 
   useEffect(() => {
-    // Initialisation des notifications
     setupPushNotifications();
 
-    // 1. Vérifier la session au lancement (récupérée via AsyncStorage dans le client)
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
+
+      // 👇 appeler ici, pas définir séparément
+      if (session?.user) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", session.user.id)
+          .single();
+        setHasConsent(!!data?.display_name);
+      }
+
       setLoading(false);
     };
 
     checkSession();
 
-    // 2. Écouter les changements d'état d'authentification (Login / Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   // Écran de chargement pendant que Supabase vérifie le token
@@ -66,6 +74,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
+        initialRouteName={!session ? "Login" : hasConsent ? "Home" : "Consent"}
         screenOptions={{
           headerStyle: { backgroundColor: "#FAFAF8" },
           headerTintColor: "#2C2C2A",
@@ -123,6 +132,11 @@ export default function App() {
               name="OfferTemplates"
               component={OfferTemplatesScreen}
               options={{ title: "Offer Templates" }}
+            />
+            <Stack.Screen 
+              name="GoalPrompt" 
+              component={GoalPromptScreen} 
+              options={{ title: "Set goal" }} 
             />
           </>
         )}

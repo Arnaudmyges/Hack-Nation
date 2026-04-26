@@ -3,7 +3,7 @@ import {
   TouchableOpacity, Switch,
   Alert,
 } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../services/supabaseClient";
 
 interface Rule {
@@ -94,8 +94,23 @@ function WeatherBadge({
   );
 }
 
-export default function MerchantRuleScreen() {
-  const [rule] = useState<Rule>(DEFAULT_RULE);
+export default function MerchantRuleScreen({ navigation }: any) {
+  const [rule, setRule] = useState<Rule>(DEFAULT_RULE);
+
+  useEffect(() => {
+    const loadRule = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: merchant } = await supabase
+        .from("merchants").select("id").eq("owner_id", user.id).single();
+      if (!merchant) return;
+      const { data } = await supabase
+        .from("merchant_rules").select("*")
+        .eq("merchant_id", merchant.id).eq("active", true).single();
+      if (data) setRule({ ...DEFAULT_RULE, ...data });
+    };
+    loadRule();
+  }, []);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -181,6 +196,13 @@ export default function MerchantRuleScreen() {
         </Text>
       </View>
 
+      <TouchableOpacity onPress={() => navigation.navigate("GoalPrompt", {
+        onRuleExtracted: (r: Partial<Rule>) => setRule(prev => ({ ...prev, ...r }))
+      })} style={{ backgroundColor: "#E3F2FD", borderRadius: 10, padding: 12,
+        alignItems: "center", marginBottom: 16 }}>
+        <Text style={{ color: "#1565C0", fontWeight: "600" }}>💬 Define by goal (AI)</Text>
+      </TouchableOpacity>
+
       {/* Rules */}
       <View style={{
         backgroundColor: "#fff", borderRadius: 14,
@@ -213,11 +235,20 @@ export default function MerchantRuleScreen() {
           </Text>
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
             {["cold", "rain", "overcast", "sunny"].map((w) => (
-              <WeatherBadge
+              <TouchableOpacity
                 key={w}
-                label={w}
-                active={rule.trigger_weather.includes(w)}
-              />
+                onPress={() => setRule(r => ({
+                  ...r,
+                  trigger_weather: r.trigger_weather.includes(w)
+                    ? r.trigger_weather.filter(x => x !== w)
+                    : [...r.trigger_weather, w]
+                }))}
+              >
+                <WeatherBadge
+                  label={w}
+                  active={rule.trigger_weather.includes(w)}
+                />
+              </TouchableOpacity>
             ))}
           </View>
         </View>
