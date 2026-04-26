@@ -5,6 +5,8 @@ import {
 import { useEffect, useState } from "react";
 import QRCode from "react-native-qrcode-svg";
 import { acceptOffer, RedemptionToken } from "../services/checkoutService";
+import { DEMO_FAILSAFE_TOKEN } from "../services/demoFailsafe";
+
 
 export default function WalletScreen({ route, navigation }: any) {
   const { offer } = route.params ?? {};
@@ -31,6 +33,12 @@ export default function WalletScreen({ route, navigation }: any) {
   }, [redemption]);
 
   async function generateToken() {
+    if (offer?.id === "demo-failsafe-001") {
+      setRedemption(DEMO_FAILSAFE_TOKEN as any);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const token = await acceptOffer(
@@ -40,7 +48,8 @@ export default function WalletScreen({ route, navigation }: any) {
       );
       setRedemption(token);
     } catch (e: any) {
-      setError(e.message);
+      console.warn("Supabase down, using failsafe token");
+      setRedemption(DEMO_FAILSAFE_TOKEN as any);
     } finally {
       setLoading(false);
     }

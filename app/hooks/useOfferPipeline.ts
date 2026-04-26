@@ -6,6 +6,7 @@ import {
   evaluateTrigger,
   ContextState,
 } from "../services/contextService";
+import { activateFailsafe } from "../services/demoFailsafe";
 import {
   buildIntentSignal,
   generateOfferFromOllama,
@@ -36,19 +37,16 @@ export function useOfferPipeline() {
   const [error, setError] = useState<string | null>(null);
 
   const trigger = async (useDemo = true) => {
-    // Reset état
     setPhase("sensing");
     setOffer(null);
     setError(null);
 
     try {
-      // ── 1. Contexte ───────────────────────────────────────
       const ctx = useDemo
         ? await fetchDemoContext()
         : await fetchRealContext();
       setContextState(ctx);
 
-      // ── 2. Trouver un marchand déclenché ──────────────────
       if (!ctx.nearbyMerchants.length) {
         setError("Aucun marchand partenaire dans ce rayon.");
         setPhase("error");
@@ -72,7 +70,6 @@ export function useOfferPipeline() {
         if (triggeredMerchant) break;
       }
 
-      // Fallback : prendre le premier marchand si rien déclenché
       if (!triggeredMerchant) {
         triggeredMerchant = ctx.nearbyMerchants[0];
         triggeredRule = triggeredMerchant.merchant_rules?.[0] ?? {
@@ -88,10 +85,8 @@ export function useOfferPipeline() {
       setSignals(triggeredSignals);
       setPhase("generating");
 
-      // ── 3. Construire le signal d'intention ───────────────
       const signal = buildIntentSignal(ctx, triggeredMerchant, triggeredRule);
 
-      // ── 4. Générer l'offre via Ollama ─────────────────────
       let generated: GeneratedOffer;
       try {
         generated = await generateOfferFromOllama(signal);
@@ -100,7 +95,6 @@ export function useOfferPipeline() {
         generated = generateFallbackOffer(signal);
       }
 
-      // ── 5. Calculer la distance ───────────────────────────
       const dlat = (triggeredMerchant.lat - ctx.lat) * 111000;
       const dlng =
         (triggeredMerchant.lng - ctx.lng) *
@@ -108,7 +102,6 @@ export function useOfferPipeline() {
         Math.cos((ctx.lat * Math.PI) / 180);
       const distance = Math.round(Math.sqrt(dlat * dlat + dlng * dlng));
 
-      // ── 6. Sauvegarder dans Supabase ──────────────────────
       const { data: savedOffer } = await supabase
         .from("offers")
         .insert({
@@ -133,7 +126,6 @@ export function useOfferPipeline() {
         .select()
         .single();
 
-      // ── 7. Assembler l'offre complète ─────────────────────
       const fullOffer: FullOffer = {
         ...generated,
         id: savedOffer?.id,
@@ -142,23 +134,20 @@ export function useOfferPipeline() {
         merchant_id: triggeredMerchant.id,
       };
 
-      // ── 8. Mettre à jour l'état ───────────────────────────
       setOffer(fullOffer);
       setPhase("ready");
 
-      // ── 9. Envoyer la push notification ───────────────────
       try {
         await sendOfferNotification(fullOffer);
       } catch (pushError) {
-        // Normal sur Expo Web — pas bloquant
         console.warn("Push non envoyée (normal sur web):", pushError);
       }
 
     } catch (err: any) {
-      console.error("Pipeline error:", err);
-      setError(err.message ?? "Erreur inconnue");
-      setPhase("error");
-    }
+        console.error("Pipeline error:", err);
+        console.warn("Activating demo failsafe...");
+        activateFailsafe(setOffer, setPhase);
+      }
   };
 
   const reset = () => {
