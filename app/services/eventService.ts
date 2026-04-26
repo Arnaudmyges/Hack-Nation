@@ -14,25 +14,47 @@ export interface LocalEvent {
   distance_meters?: number;
 }
 
-export async function fetchNearbyEvents(lat: number, lng: number): Promise<LocalEvent[]> {
-  const now = new Date().toISOString();
-  const { data } = await supabase
-    .from("local_events")
-    .select("*")
-    .lte("starts_at", now)
-    .gte("ends_at", now);
+const EVENTBRITE_TOKEN = "ATTUBELJCXCIG7GWBC43";
 
-  return (data ?? [])
-    .map(e => {
-      const dlat = (e.lat - lat) * 111000;
-      const dlng = (e.lng - lng) * 111000 * Math.cos(lat * Math.PI / 180);
-      return { ...e, distance_meters: Math.round(Math.sqrt(dlat*dlat + dlng*dlng)) };
-    })
-    .filter(e => e.distance_meters < 1000)
-    .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0));
+export async function fetchNearbyEvents(lat: number, lng: number) {
+  try {
+    const response = await fetch(
+      `https://www.eventbriteapi.com/v3/destination/events/?location.address=stuttgart&expand=venue`,
+      {
+        headers: { 'Authorization': `Bearer ${EVENTBRITE_TOKEN}` }
+      }
+    );
+
+    const data = await response.json();
+
+    const rawEvents = data.events || data.destination_events || [];
+
+    return rawEvents.map((event: any) => ({
+      id: event.id,
+      name: event.name?.text || "Event",
+      category: mapEventbriteCategory(event.category_id), 
+      lat: parseFloat(event.venue?.latitude || "0"),
+      lng: parseFloat(event.venue?.longitude || "0"),
+      starts_at: event.start?.local,
+      ends_at: event.end?.local,
+      expected_attendance: 500, // Eventbrite donne rarement ce chiffre, on met un défaut pour l'IA
+    }));
+  } catch (error) {
+    console.error("Erreur Eventbrite:", error);
+    return [];
+  }
 }
 
-// Add events to context state and intent signal
+function mapEventbriteCategory(id: string): string {
+  const mapping: Record<string, string> = {
+    "103": "festival",
+    "108": "sports",
+    "110": "market",
+    "101": "concert",
+  };
+  return mapping[id] || "festival";
+}
+
 export function eventsToTags(events: LocalEvent[]): string[] {
   return events.map(e => `event_${e.category}_nearby`);
 }

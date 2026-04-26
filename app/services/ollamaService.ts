@@ -140,6 +140,11 @@ export function buildIntentSignal(
   const dlng = (merchant.lng - ctx.lng) * 111000 * Math.cos(ctx.lat * Math.PI / 180);
   const distance = Math.round(Math.sqrt(dlat * dlat + dlng * dlng));
   const eventTags = eventsToTags(ctx.nearbyEvents ?? []);
+
+  if (ctx.nearbyEvents && ctx.nearbyEvents.length > 0) {
+    const eventNames = ctx.nearbyEvents.map((e: any) => e.name).join(", ");
+    tags.push(`specific_events: ${eventNames}`);
+  }
   tags.push(...eventTags);
 
 

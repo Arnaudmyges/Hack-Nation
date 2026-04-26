@@ -45,6 +45,11 @@ export function useOfferPipeline() {
       const ctx = useDemo
         ? await fetchDemoContext()
         : await fetchRealContext();
+      if (!useDemo) {
+        const { fetchNearbyEvents } = await import("../services/eventService");
+        const realEvents = await fetchNearbyEvents(ctx.lat, ctx.lng);
+        ctx.nearbyEvents = realEvents;
+      }
       setContextState(ctx);
 
       if (!ctx.nearbyMerchants.length) {

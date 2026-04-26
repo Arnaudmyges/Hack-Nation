@@ -65,9 +65,26 @@ export default function HomeScreen({ navigation }: any) {
               ⏰ {contextState.hour}h · Stuttgart
             </Text>
             {contextState.nearbyEvents?.length > 0 && (
-              <Text style={{ fontSize: 12, color: "#7F77DD", marginBottom: 4 }}>
-                🎉 {contextState.nearbyEvents[0].name} nearby
-              </Text>
+              <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: "#E0DDD5", paddingTop: 8 }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#7F77DD", marginBottom: 4 }}>
+                  ÉVÉNEMENTS EVENTBRITE PROCHES :
+                </Text>
+                {contextState.nearbyEvents.map((ev, idx) => (
+                  <View key={ev.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 12, color: "#5F5E5A" }}>
+                      🎉 {ev.name} 
+                    </Text>
+                    <View style={{ 
+                      marginLeft: 6, 
+                      paddingHorizontal: 4, 
+                      backgroundColor: '#7F77DD22', 
+                      borderRadius: 4 
+                    }}>
+                      <Text style={{ fontSize: 10, color: '#7F77DD' }}>{ev.category}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
             )}
             {signals.length > 0 && (
               <View
