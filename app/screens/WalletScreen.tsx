@@ -1,32 +1,21 @@
 import {
   View, Text, TouchableOpacity,
-  ActivityIndicator, ScrollView
-} from "react-native";
+  ActivityIndicator, ScrollView, Alert, StyleSheet
+} from "react-native"; // <-- Le StyleSheet manquant était ici
 import { useEffect, useState } from "react";
 import QRCode from "react-native-qrcode-svg";
+import { supabase } from "../services/supabaseClient";
 import { acceptOffer, RedemptionToken } from "../services/checkoutService";
 import { DEMO_FAILSAFE_TOKEN } from "../services/demoFailsafe";
-import { supabase } from "../services/supabaseClient";
-// 1. Nouvel import pour le service de cashback
-import { creditCashback } from "../services/cashbackService";
-
-async function fetchCashbackBalance(): Promise<number> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return 0;
-  const { data } = await supabase
-    .from("profiles")
-    .select("cashback_balance")
-    .eq("id", user.id)
-    .single();
-  return data?.cashback_balance ?? 0;
-}
+import { creditCashback, useCashback } from "../services/cashbackService";
 
 export default function WalletScreen({ route, navigation }: any) {
   const { offer } = route.params ?? {};
   const [redemption, setRedemption] = useState<RedemptionToken | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(15 * 60);
+  const [timeLeft, setTimeLeft] = useState(15 * 60); 
+  const [balance, setBalance] = useState(0);
 
   useEffect(() => {
     if (!offer?.id) {
@@ -34,7 +23,12 @@ export default function WalletScreen({ route, navigation }: any) {
       setLoading(false);
       return;
     }
-    generateToken();
+    
+    const init = async () => {
+      await generateToken();
+      await refreshBalance();
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -44,6 +38,18 @@ export default function WalletScreen({ route, navigation }: any) {
     }, 1000);
     return () => clearInterval(interval);
   }, [redemption]);
+
+  const refreshBalance = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("cashback_balance")
+        .eq("id", user.id)
+        .single();
+      setBalance(data?.cashback_balance ?? 0);
+    }
+  };
 
   async function generateToken() {
     if (offer?.id === "demo-failsafe-001") {
@@ -61,106 +67,91 @@ export default function WalletScreen({ route, navigation }: any) {
       );
       setRedemption(token);
     } catch (e: any) {
-      console.warn("Supabase down, using failsafe token");
+      console.warn("API/DB Error, using failsafe token");
       setRedemption(DEMO_FAILSAFE_TOKEN as any);
     } finally {
       setLoading(false);
     }
   }
 
+  const handleUseCashbackAction = async () => {
+    if (!redemption?.id || balance <= 0) return;
+    
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const newBal = await useCashback(user.id, redemption.id, balance);
+      setBalance(newBal);
+      
+      Alert.alert("Succès", `€${balance.toFixed(2)} déduits !`);
+    } catch (e) {
+      Alert.alert("Erreur", "Impossible de déduire le cashback.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEarnCashbackAction = async () => {
+    if (!redemption?.id) return;
+
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const newBal = await creditCashback(user.id, redemption.id, offer.discount_pct);
+      setBalance(newBal);
+      
+      Alert.alert("Bravo", "Cashback crédité !");
+      navigation.navigate("Home");
+    } catch (e) {
+      Alert.alert("Erreur", "Impossible de créditer le cashback.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const mins = Math.floor(timeLeft / 60);
   const secs = String(timeLeft % 60).padStart(2, "0");
-  const isUrgent = timeLeft < 60;
   const isExpired = timeLeft === 0;
 
-  if (loading) {
+  if (loading && !redemption) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAFAF8" }}>
+      <View style={styles.center}>
         <ActivityIndicator size="large" color="#E65100" />
-        <Text style={{ marginTop: 12, color: "#888", fontSize: 13 }}>
-          Generating QR code...
-        </Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAFAF8", padding: 24 }}>
-        <Text style={{ fontSize: 40, marginBottom: 12 }}>⚠️</Text>
-        <Text style={{ color: "#C62828", fontWeight: "600", textAlign: "center" }}>
-          {error}
-        </Text>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{ marginTop: 16, padding: 12 }}
-        >
-          <Text style={{ color: "#E65100" }}>← Go Back</Text>
-        </TouchableOpacity>
+        <Text style={styles.loadingText}>Génération du QR Code...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#FAFAF8" }}
-      contentContainerStyle={{ alignItems: "center", padding: 24 }}
-    >
-      <View style={{
-        width: "100%", padding: 16,
-        backgroundColor: "#FFF3E0",
-        borderRadius: 14, marginBottom: 24,
-        alignItems: "center",
-      }}>
-        <Text style={{ fontSize: 24 }}>☕</Text>
-        <Text style={{ fontSize: 16, fontWeight: "700", color: "#4E2B00", marginTop: 4 }}>
-          {offer?.merchant_name}
-        </Text>
-        <Text style={{ fontSize: 13, color: "#888", marginTop: 2 }}>
-          {offer?.headline}
-        </Text>
-        <View style={{
-          marginTop: 8, backgroundColor: "#E65100",
-          borderRadius: 20, paddingHorizontal: 16, paddingVertical: 4,
-        }}>
-          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 18 }}>
-            −{offer?.discount_pct}%
-          </Text>
+    <ScrollView style={styles.main} contentContainerStyle={{ alignItems: "center", padding: 24 }}>
+      
+      <View style={styles.offerHeader}>
+        <Text style={{ fontSize: 32 }}>{offer?.emoji || "🎁"}</Text>
+        <Text style={styles.merchantName}>{offer?.merchant_name}</Text>
+        <Text style={styles.offerHeadline}>{offer?.headline}</Text>
+        <View style={styles.discountBadge}>
+          <Text style={styles.discountText}>−{offer?.discount_pct}%</Text>
         </View>
       </View>
       
-      {/* 2. Insertion des nouveaux callbacks avec la logique de crédit */}
       {!isExpired && (
         <CashbackChoice 
+          balance={balance}
           offer={offer} 
-          onUseCashback={async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user && redemption) {
-              await creditCashback(user.id, redemption.id, offer.discount_pct);
-              alert("Cashback appliqué à votre prochain scan !");
-            }
-          }}
-          onSkip={async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user && redemption) {
-              await creditCashback(user.id, redemption.id, offer.discount_pct);
-              alert("Vous cumulerez du cashback après cet achat !");
-            }
-          }}
+          onUseCashback={handleUseCashbackAction}
+          onSkip={handleEarnCashbackAction}
+          loading={loading}
         />
       )}
       
-      <Text style={{ fontSize: 14, color: "#5F5E5A", marginBottom: 16, textAlign: "center" }}>
-        Show this QR code to the merchant
-      </Text>
+      <Text style={styles.instruction}>Présentez ce code au marchand</Text>
 
       {!isExpired ? (
-        <View style={{
-          padding: 20, backgroundColor: "#fff",
-          borderRadius: 16, marginBottom: 20,
-          shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
-        }}>
+        <View style={styles.qrContainer}>
           <QRCode
             value={redemption?.qr_data ?? "expired"}
             size={220}
@@ -169,94 +160,77 @@ export default function WalletScreen({ route, navigation }: any) {
           />
         </View>
       ) : (
-        <View style={{
-          width: 260, height: 260, backgroundColor: "#FFEBEE",
-          borderRadius: 16, alignItems: "center", justifyContent: "center",
-          marginBottom: 20,
-        }}>
+        <View style={styles.expiredContainer}>
           <Text style={{ fontSize: 40 }}>⏰</Text>
-          <Text style={{ color: "#C62828", fontWeight: "700", marginTop: 8 }}>
-            Offer expired
-          </Text>
+          <Text style={styles.expiredText}>Offre expirée</Text>
         </View>
       )}
 
-      <View style={{
-        flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8,
-      }}>
-        <Text style={{ fontSize: 13, color: isUrgent ? "#C62828" : "#5F5E5A" }}>
-          ⏱ Expires in
+      <View style={styles.timerRow}>
+        <Text style={{ fontSize: 13, color: timeLeft < 60 ? "#C62828" : "#5F5E5A" }}>
+          ⏱ Expire dans
         </Text>
-        <Text style={{
-          fontSize: 20, fontWeight: "800",
-          color: isUrgent ? "#C62828" : "#2C2C2A",
-        }}>
+        <Text style={[styles.timerValue, { color: timeLeft < 60 ? "#C62828" : "#2C2C2A" }]}>
           {mins}:{secs}
         </Text>
       </View>
 
-      <Text style={{ fontSize: 11, color: "#B4B2A9", marginBottom: 32, textAlign: "center" }}>
-        Token ID: {redemption?.token}
-      </Text>
+      <Text style={styles.tokenId}>Token ID: {redemption?.token}</Text>
 
-      <TouchableOpacity
-        onPress={() => navigation.navigate("Home")}
-        style={{
-          width: "100%", padding: 14,
-          backgroundColor: "#F1EFE8",
-          borderRadius: 12, alignItems: "center",
-        }}
-      >
-      <TouchableOpacity
-        onPress={() => navigation.navigate("WalletHistory")}
-        style={{ width: "100%", padding: 14, backgroundColor: "#E8F5E9",
-          borderRadius: 12, alignItems: "center", marginBottom: 8 }}>
-        <Text style={{ color: "#2E7D32", fontWeight: "600" }}>
-          📋 View wallet history
-        </Text>
-      </TouchableOpacity>
-        <Text style={{ color: "#5F5E5A", fontWeight: "600" }}>
-          ← Back to Home
-        </Text>
+      <TouchableOpacity onPress={() => navigation.navigate("Home")} style={styles.backButton}>
+        <Text style={{ color: "#5F5E5A", fontWeight: "600" }}>← Retour à l'accueil</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-// Le composant CashbackChoice reste identique mais recevra les nouveaux onUseCashback / onSkip
-export function CashbackChoice({ offer, onUseCashback, onSkip }: any) {
-  const [balance, setBalance] = useState(0);
-
-  useEffect(() => {
-    fetchCashbackBalance().then(setBalance);
-  }, []);
-
-  const cashbackAmount = (8.50 * offer.discount_pct / 100).toFixed(2);
+function CashbackChoice({ balance, offer, onUseCashback, onSkip, loading }: any) {
+  const potentialEarn = (8.50 * offer.discount_pct / 100).toFixed(2);
 
   return (
-    <View style={{ width: '100%', padding: 16, backgroundColor: "#E8F5E9", borderRadius: 14, marginBottom: 16 }}>
-      <Text style={{ fontSize: 14, fontWeight: "600", color: "#1B5E20", marginBottom: 8 }}>
-        💳 Cashback available
-      </Text>
-      <Text style={{ fontSize: 13, color: "#2E7D32", marginBottom: 12 }}>
-        Your balance: €{balance.toFixed(2)} · This offer earns: +€{cashbackAmount}
+    <View style={styles.cashbackCard}>
+      <Text style={styles.cashbackTitle}>💳 Votre Cashback</Text>
+      <Text style={styles.cashbackStats}>
+        Solde : €{balance.toFixed(2)} · Gain : +€{potentialEarn}
       </Text>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <TouchableOpacity 
+          disabled={loading || balance <= 0}
           onPress={onUseCashback}
-          style={{ flex: 1, backgroundColor: "#2E7D32", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
-          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>
-            Use €{balance > 0 ? balance.toFixed(2) : "0.00"}
-          </Text>
+          style={[styles.cashbackBtn, { backgroundColor: balance > 0 ? "#2E7D32" : "#B4B2A9" }]}>
+          <Text style={styles.btnText}>Utiliser €{balance.toFixed(2)}</Text>
         </TouchableOpacity>
         <TouchableOpacity 
+          disabled={loading}
           onPress={onSkip}
-          style={{ flex: 1, backgroundColor: "#F1EFE8", borderRadius: 10, paddingVertical: 10, alignItems: "center" }}>
-          <Text style={{ color: "#5F5E5A", fontWeight: "600", fontSize: 13 }}>
-            Earn +€{cashbackAmount}
-          </Text>
+          style={[styles.cashbackBtn, { backgroundColor: "#F1EFE8" }]}>
+          <Text style={[styles.btnText, { color: "#5F5E5A" }]}>Cumuler +€{potentialEarn}</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  main: { flex: 1, backgroundColor: "#FAFAF8" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { marginTop: 12, color: "#888", fontSize: 13 },
+  offerHeader: { width: "100%", padding: 20, backgroundColor: "#FFF3E0", borderRadius: 18, marginBottom: 20, alignItems: "center" },
+  merchantName: { fontSize: 18, fontWeight: "800", color: "#4E2B00", marginTop: 8 },
+  offerHeadline: { fontSize: 13, color: "#888", textAlign: "center" },
+  discountBadge: { marginTop: 10, backgroundColor: "#E65100", borderRadius: 20, paddingHorizontal: 20, paddingVertical: 6 },
+  discountText: { color: "#fff", fontWeight: "800", fontSize: 20 },
+  instruction: { fontSize: 13, color: "#888", marginBottom: 15 },
+  qrContainer: { padding: 20, backgroundColor: "#fff", borderRadius: 20, elevation: 5, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  timerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 25 },
+  timerValue: { fontSize: 22, fontWeight: "900" },
+  tokenId: { fontSize: 10, color: "#B4B2A9", marginTop: 10 },
+  backButton: { width: "100%", padding: 16, backgroundColor: "#F1EFE8", borderRadius: 14, alignItems: "center", marginTop: 30 },
+  expiredContainer: { width: 260, height: 260, backgroundColor: "#FFEBEE", borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  expiredText: { color: "#C62828", fontWeight: "700", marginTop: 10 },
+  cashbackCard: { width: '100%', padding: 16, backgroundColor: "#E8F5E9", borderRadius: 16, marginBottom: 20 },
+  cashbackTitle: { fontSize: 15, fontWeight: "700", color: "#1B5E20", marginBottom: 4 },
+  cashbackStats: { fontSize: 12, color: "#2E7D32", marginBottom: 12 },
+  cashbackBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" },
+  btnText: { color: "#fff", fontWeight: "700", fontSize: 12 }
+});
